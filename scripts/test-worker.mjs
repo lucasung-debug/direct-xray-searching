@@ -135,7 +135,9 @@ globalThis.fetch = async (_url, init) => {
   assert.equal(init.headers.authorization, undefined);
   assert.doesNotMatch(String(_url), /[?&]key=/, "BYOK key must never be put in the URL");
   assert.equal(init.redirect, "error");
-  assert.equal(init.cache, "no-store");
+  assert.equal(Object.hasOwn(init, "cache"), false, "Sites runtime must not receive the compatibility-gated RequestInit.cache field");
+  assert.equal(init.headers["cache-control"], "no-store");
+  assert.equal(init.headers.pragma, "no-cache");
   if (init.method === "GET") {
     assert.match(String(_url), /\/v1\/models\?pageSize=1000$/);
     return new Response(JSON.stringify({
@@ -242,6 +244,17 @@ assert.deepEqual(keyTest.attemptedModels, [
   { model: "gemini-3.5-flash-lite", apiVersion: "v1beta", status: 404 },
   { model: "gemini-2.5-flash-lite", apiVersion: "v1", status: 200 },
 ]);
+
+response = await worker.fetch(request("/api/settings/gemini/test", { method: "POST", headers: { ...settingsHeaders, "content-type": "application/json" }, body: "{}" }), { ...env, BYOK_MASTER_KEY: "invalid" });
+assert.equal(response.status, 500);
+assert.equal((await response.json()).status, "storage_error", "decryption failures must be distinct from Gemini transport failures");
+
+const workingGeminiFetch = globalThis.fetch;
+globalThis.fetch = async () => { throw new TypeError("Request initializer is unsupported"); };
+response = await worker.fetch(request("/api/settings/gemini/test", { method: "POST", headers: { ...settingsHeaders, "content-type": "application/json" }, body: "{}" }), env);
+assert.equal(response.status, 502);
+assert.equal((await response.json()).status, "network_error", "runtime fetch failures must not be reported as decryption failures");
+globalThis.fetch = workingGeminiFetch;
 
 forceAuthenticationFailure = true;
 const beforeAuthFailureCalls = geminiCalls.length;
