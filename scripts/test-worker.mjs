@@ -77,8 +77,9 @@ assert.match(home, /REFERENCE PARITY/);
 assert.doesNotMatch(home, new RegExp(fakeKey));
 assert.match(home, /AQ\./);
 assert.match(home, /maxlength="512"/);
-assert.match(home, /sandbox","allow-popups allow-popups-to-escape-sandbox/);
-assert.doesNotMatch(home, /sandbox","[^"]*allow-scripts/);
+assert.doesNotMatch(home, /createElement\("iframe"\)|\.srcdoc\s*=/, "Google Search Suggestions must not be framed");
+assert.match(home, /safeGoogleSuggestionFragment/);
+assert.match(home, /attachShadow/);
 
 response = await worker.fetch(request("/api/settings/gemini", {
   method: "PUT",
@@ -166,7 +167,10 @@ globalThis.fetch = async (_url, init) => {
         content: { parts: [{ text: "근거가 연결된 일회성 결과" }] },
         groundingMetadata: {
           webSearchQueries: ["CPO public profile"],
-          searchEntryPoint: { renderedContent: "<div>Google Search Suggestions</div>" },
+          searchEntryPoint: {
+            renderedContent: "<style>.g{font-weight:700}</style><a class=\"g\" href=\"https://www.google.com/search?q=CPO+public+profile\">CPO public profile</a>",
+            sdkBlob: Buffer.from(JSON.stringify([["CPO public profile", "https://www.google.com/search?q=CPO+public+profile"]]), "utf8").toString("base64"),
+          },
           groundingChunks: [{ web: { uri: "https://example.com/profile", title: "Public profile" } }],
         },
       }],
@@ -191,6 +195,11 @@ assert.deepEqual(search.attemptedModels, [
 ]);
 assert.equal(search.persistAllowed, false);
 assert.ok(search.groundingMetadata);
+assert.deepEqual(search.groundingMetadata.searchEntryPoint.searchSuggestions, [
+  { label: "CPO public profile", url: "https://www.google.com/search?q=CPO+public+profile" },
+]);
+assert.match(search.groundingMetadata.searchEntryPoint.renderedContent, /CPO public profile/);
+assert.equal(JSON.stringify(search).includes("sdkBlob"), false, "raw sdkBlob must not be returned to the browser");
 assert.match(capturedPrompt, /Privacy by Design/);
 assert.match(capturedPrompt, /Do not infer or mention age/);
 
@@ -272,4 +281,4 @@ const setup = await response.json();
 assert.equal(setup.status, "setup_required");
 assert.match(setup.fallbackUrl, /^https:\/\/www\.google\.com\/search\?q=/);
 
-console.log("Worker auth, strict Origin, AES-GCM BYOK, sandboxed suggestions, rate lock, search boundary, and Grounding contract passed");
+console.log("Worker auth, strict Origin, AES-GCM BYOK, isolated suggestions, rate lock, search boundary, and Grounding contract passed");
