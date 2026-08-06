@@ -523,7 +523,7 @@ const SOURCING_HTML = String.raw`<!doctype html>
     .ephemeral{display:inline-flex;padding:6px 9px;border-radius:999px;background:var(--amber-soft);color:var(--amber);font-size:10px;font-weight:900}
     .search-message{margin-top:15px;padding:14px;border-radius:12px;background:var(--soft);white-space:pre-wrap;line-height:1.65;font-size:13px;max-height:430px;overflow:auto}
     .sources{display:grid;gap:7px;margin-top:14px}.source{display:flex;gap:8px;align-items:flex-start;padding:9px 10px;border:1px solid var(--line);border-radius:9px;text-decoration:none;font-size:11px}.source:hover{background:#f8faff}
-    .suggestions{margin-top:12px;overflow:auto}.suggestions iframe{display:block;width:100%;height:170px;border:1px solid var(--line);border-radius:10px;background:#fff}.fallback{display:inline-block;margin-top:12px;color:var(--blue);font-weight:850;font-size:12px}
+    .suggestions{margin-top:12px}.suggestion-panel{padding:12px;border:1px solid var(--line);border-radius:11px;background:#f8faff}.suggestion-title{font-size:10px;font-weight:900;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}.suggestion-links{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.suggestion-chip{display:inline-flex;align-items:center;min-height:32px;padding:7px 10px;border:1px solid #cad9ff;border-radius:999px;background:#fff;color:var(--blue);font-size:11px;font-weight:850;text-decoration:none}.suggestion-chip:hover{background:var(--blue-soft)}.fallback{display:inline-block;margin-top:12px;color:var(--blue);font-weight:850;font-size:12px}
     .pool{padding:22px}.pool-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.pool-head h2{margin:4px 0 5px}
     .pills{display:flex;gap:6px;flex-wrap:wrap}.pill{display:inline-flex;border-radius:999px;padding:6px 8px;background:var(--soft);color:var(--muted);font-size:10px;font-weight:800}.pill.blue{background:var(--blue-soft);color:var(--blue)}.pill.green{background:var(--green-soft);color:var(--green)}.pill.amber{background:var(--amber-soft);color:var(--amber)}
     .cards{display:grid;gap:10px;margin-top:17px}.candidate{position:relative;display:grid;grid-template-columns:68px minmax(0,1fr);gap:14px;padding:16px;border:1px solid var(--line);border-radius:14px;background:#fff}.rank{position:absolute;top:10px;right:12px;color:#9aa4b5;font-size:10px;font-weight:900}
@@ -701,15 +701,44 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
       }
       function canonicalUrl(value){try{var u=new URL(value);if(u.protocol!=="https:")return "";u.hash="";["utm_source","utm_medium","utm_campaign","trk"].forEach(function(k){u.searchParams.delete(k)});return u.toString().replace(/\/$/,"").toLowerCase()}catch(e){return ""}}
       function safeHttpUrl(value){try{var u=new URL(value);return u.protocol==="https:"?u.toString():""}catch(e){return ""}}
-      function renderGoogleSuggestions(markup){
-        var frame=document.createElement("iframe");
-        frame.setAttribute("sandbox","allow-popups allow-popups-to-escape-sandbox");
-        frame.setAttribute("referrerpolicy","no-referrer");
-        frame.setAttribute("title","Google Search Suggestions");
-        var remote=String(markup||"").replace(/<base\b[^>]*>/gi,"").replace(/<meta\b[^>]*http-equiv\s*=\s*[\"']?refresh[\s\S]*?>/gi,"");
-        var csp="<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'; connect-src 'none'; style-src 'unsafe-inline'; img-src https: data:; navigate-to 'none'\">";
-        byId("search-suggestions").replaceChildren(frame);
-        frame.srcdoc="<!doctype html><html><head><meta charset=\"utf-8\">"+csp+"</head><body>"+remote+"</body></html>";
+      function safeGoogleUrl(value){try{var raw=String(value||""),u=new URL(raw),h=u.hostname.toLowerCase();return u.protocol==="https:"&&(h==="google.com"||h==="www.google.com")&&!u.username&&!u.password&&(!u.port||u.port==="443")?raw:""}catch(e){return ""}}
+      function safeGoogleSuggestionFragment(markup){
+        if(typeof markup!=="string"||!markup||markup.length>200000)return null;
+        var template=document.createElement("template");template.innerHTML=markup;
+        template.content.querySelectorAll("script,iframe,object,embed,base,meta,form,input,button").forEach(function(node){node.remove()});
+        var valid=true;
+        template.content.querySelectorAll("*").forEach(function(node){
+          Array.from(node.attributes||[]).forEach(function(attr){
+            var name=attr.name.toLowerCase();
+            if(name.indexOf("on")===0||name==="src"||name==="srcset"||name==="action"||name==="formaction"){node.removeAttribute(attr.name)}
+            if(name==="style"&&/(?:url\s*\(|expression\s*\(|@import)/i.test(attr.value)){node.removeAttribute(attr.name)}
+          });
+          if(node.tagName==="A"){
+            var href=safeGoogleUrl(node.getAttribute("href"));if(!href){valid=false;return}
+            node.setAttribute("href",href);node.setAttribute("target","_blank");node.setAttribute("rel","noopener noreferrer");
+          }
+        });
+        template.content.querySelectorAll("style").forEach(function(style){style.textContent=String(style.textContent||"").replace(/@import[\s\S]*?;/gi,"").replace(/url\s*\([^)]*\)/gi,"none")});
+        return valid?template.content:null;
+      }
+      function renderGoogleSuggestions(entryPoint){
+        var root=byId("search-suggestions");root.innerHTML="";
+        entryPoint=entryPoint&&typeof entryPoint==="object"?entryPoint:{};
+        var fragment=safeGoogleSuggestionFragment(entryPoint.renderedContent);
+        if(fragment){
+          var host=document.createElement("div");host.className="suggestion-panel";
+          var shadow=host.attachShadow({mode:"open"});shadow.appendChild(fragment);root.appendChild(host);return;
+        }
+        var suggestions=Array.isArray(entryPoint.searchSuggestions)?entryPoint.searchSuggestions:[];
+        if(!suggestions.length)return;
+        var panel=document.createElement("div");panel.className="suggestion-panel";
+        var title=document.createElement("div");title.className="suggestion-title";title.textContent="Google Search Suggestions";panel.appendChild(title);
+        var links=document.createElement("div");links.className="suggestion-links";
+        suggestions.slice(0,5).forEach(function(item){
+          var href=safeGoogleUrl(item&&item.url);if(!href)return;
+          var a=document.createElement("a");a.className="suggestion-chip";a.target="_blank";a.rel="noopener noreferrer";a.href=href;a.textContent=String(item.label||"Google 검색");links.appendChild(a);
+        });
+        if(links.childNodes.length){panel.appendChild(links);root.appendChild(panel)}
       }
       function renderCandidates(){
         var sorted=candidates.slice().sort(function(a,b){return b.score-a.score});
@@ -748,8 +777,8 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
             var a=document.createElement("a");a.className="source";a.target="_blank";a.rel="noopener noreferrer";a.href=href;
             a.textContent=(index+1)+". "+(chunk.web.title||chunk.web.uri);byId("search-sources").appendChild(a);
           });
-          var rendered=data.groundingMetadata&&data.groundingMetadata.searchEntryPoint&&data.groundingMetadata.searchEntryPoint.renderedContent;
-          if(rendered)renderGoogleSuggestions(rendered);
+          var entryPoint=data.groundingMetadata&&data.groundingMetadata.searchEntryPoint;
+          renderGoogleSuggestions(entryPoint);
           toast("사이트에서 Google Grounded Search를 실행했습니다.");
         }else{
           byId("search-title").textContent=data.status==="setup_required"?"BYOK 키 설정 필요":"검색 결과 확인 필요";
@@ -1153,6 +1182,43 @@ function sourcingPrompt(input) {
   ].join("\n");
 }
 
+function decodeSearchSuggestionBlob(value) {
+  const encoded = String(value || "");
+  if (!encoded || encoded.length > 90000) return [];
+  try {
+    const normalized = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+    const decoded = base64ToBytes(padded);
+    if (decoded.byteLength > 65536) return [];
+    const parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(decoded));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function browserSafeSearchSuggestions(metadata) {
+  const entryPoint = metadata && metadata.searchEntryPoint && typeof metadata.searchEntryPoint === "object"
+    ? metadata.searchEntryPoint
+    : {};
+  const suggestions = [];
+  for (const item of decodeSearchSuggestionBlob(entryPoint.sdkBlob).slice(0, 5)) {
+    if (!Array.isArray(item) || item.length < 2) return [];
+    const label = String(item[0] == null ? "" : item[0]);
+    const rawUrl = String(item[1] == null ? "" : item[1]);
+    if (!label || label.length > 300 || rawUrl.length > 2048 || /[\u0000-\u001F\u007F]/.test(label)) return [];
+    try {
+      const parsed = new URL(rawUrl);
+      const hostname = parsed.hostname.toLowerCase();
+      if (parsed.protocol !== "https:" || (hostname !== "google.com" && hostname !== "www.google.com") || parsed.username || parsed.password || (parsed.port && parsed.port !== "443")) return [];
+      suggestions.push({ label, url: rawUrl });
+    } catch (_) {
+      return [];
+    }
+  }
+  return suggestions;
+}
+
 function browserSafeGroundingMetadata(value) {
   const metadata = value && typeof value === "object" ? value : {};
   const queries = Array.isArray(metadata.webSearchQueries)
@@ -1166,11 +1232,15 @@ function browserSafeGroundingMetadata(value) {
       chunks.push({ web: { uri: uri.toString(), title: compactText(chunk.web.title || uri.hostname, 300) } });
     } catch (_) {}
   }
-  const renderedContent = compactText(metadata.searchEntryPoint && metadata.searchEntryPoint.renderedContent, 200000);
+  const entryPoint = metadata.searchEntryPoint && typeof metadata.searchEntryPoint === "object" ? metadata.searchEntryPoint : {};
+  const searchSuggestions = browserSafeSearchSuggestions(metadata);
+  const renderedContent = typeof entryPoint.renderedContent === "string" && entryPoint.renderedContent.length <= 200000
+    ? entryPoint.renderedContent
+    : "";
   return {
     webSearchQueries: queries,
     groundingChunks: chunks,
-    searchEntryPoint: renderedContent ? { renderedContent } : null,
+    searchEntryPoint: renderedContent || searchSuggestions.length ? { renderedContent, searchSuggestions } : null,
   };
 }
 
