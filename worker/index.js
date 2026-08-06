@@ -1020,46 +1020,6 @@ async function handleGeminiSettings(request, env) {
   }
 }
 
-async function discoverGeminiModels(apiKey) {
-  const started = Date.now();
-  for (const apiVersion of GEMINI_API_VERSION_PRIORITY) {
-    try {
-      const response = await fetch("https://generativelanguage.googleapis.com/" + apiVersion + "/models?pageSize=1000", {
-        method: "GET",
-        headers: {
-          "x-goog-api-key": apiKey,
-          "cache-control": "no-store",
-          pragma: "no-cache",
-        },
-        redirect: "error",
-        signal: typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(10000) : undefined,
-      });
-      let payload = null;
-      try { payload = await response.json(); } catch (_) {}
-      const available = new Set();
-      if (response.ok && payload && Array.isArray(payload.models)) {
-        for (const item of payload.models) {
-          const methods = Array.isArray(item && item.supportedGenerationMethods) ? item.supportedGenerationMethods : [];
-          if (!methods.some((method) => String(method).toLowerCase() === "generatecontent")) continue;
-          const names = [item && item.name, item && item.baseModelId];
-          for (const value of names) {
-            const model = String(value || "").replace(/^models\//, "");
-            if (/^[A-Za-z0-9._-]+$/.test(model)) available.add(model);
-          }
-        }
-      }
-      if (response.status !== 404 || apiVersion === GEMINI_API_VERSION_PRIORITY[GEMINI_API_VERSION_PRIORITY.length - 1]) {
-        return { response, payload, available, apiVersion, elapsed: Date.now() - started };
-      }
-    } catch (_) {
-      if (apiVersion === GEMINI_API_VERSION_PRIORITY[GEMINI_API_VERSION_PRIORITY.length - 1]) {
-        return { response: null, payload: null, available: null, apiVersion: null, elapsed: Date.now() - started };
-      }
-    }
-  }
-  return { response: null, payload: null, available: null, apiVersion: null, elapsed: Date.now() - started };
-}
-
 async function callGeminiModel(apiKey, model, apiVersion, prompt, useSearch) {
   if (!GEMINI_MODEL_PRIORITY.includes(model)) throw new Error("Unsupported Gemini model.");
   if (!GEMINI_API_VERSION_PRIORITY.includes(apiVersion)) throw new Error("Unsupported Gemini API version.");
@@ -1072,11 +1032,8 @@ async function callGeminiModel(apiKey, model, apiVersion, prompt, useSearch) {
     headers: {
       "content-type": "application/json",
       "x-goog-api-key": apiKey,
-      "cache-control": "no-store",
-      pragma: "no-cache",
     },
     body: JSON.stringify(body),
-    redirect: "error",
     signal: typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(30000) : undefined,
   });
   const elapsed = Date.now() - started;
@@ -1099,32 +1056,14 @@ function geminiFallbackAllowed(result, useSearch) {
 }
 
 async function callGemini(apiKey, prompt, useSearch) {
-  const catalog = await discoverGeminiModels(apiKey);
-  if (catalog.response && catalog.response.status === 401) {
-    return { response: catalog.response, payload: catalog.payload, elapsed: catalog.elapsed, model: null, attempts: [], catalogStatus: 401 };
-  }
-  let models = GEMINI_MODEL_PRIORITY.slice();
-  if (catalog.response && catalog.response.ok && catalog.available) {
-    models = models.filter((model) => catalog.available.has(model));
-    if (!models.length) {
-      const payload = { error: { code: 404, status: "NOT_FOUND" } };
-      return {
-        response: new Response(JSON.stringify(payload), { status: 404, headers: { "content-type": "application/json" } }),
-        payload,
-        elapsed: catalog.elapsed,
-        model: null,
-        attempts: GEMINI_MODEL_PRIORITY.map((model) => ({ model, status: "NOT_LISTED" })),
-        catalogStatus: 200,
-      };
-    }
-  }
+  const models = GEMINI_MODEL_PRIORITY.slice();
   const attempts = [];
   let lastResult = null;
   for (let index = 0; index < models.length; index += 1) {
     for (const apiVersion of GEMINI_API_VERSION_PRIORITY) {
       const result = await callGeminiModel(apiKey, models[index], apiVersion, prompt, useSearch);
       attempts.push({ model: result.model, apiVersion: result.apiVersion, status: result.response.status });
-      lastResult = { ...result, attempts: attempts.slice(), catalogStatus: catalog.response ? catalog.response.status : null };
+      lastResult = { ...result, attempts: attempts.slice() };
       if (result.response.ok) return lastResult;
       if (result.response.status !== 404) break;
     }
