@@ -1,0 +1,10 @@
+{
+  "name": "data-analytics-sites-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "validate": "node scripts/validate-artifact.mjs",
+    "test": "node scripts/test-worker.mjs"
+  }
+}
