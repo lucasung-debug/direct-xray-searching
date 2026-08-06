@@ -639,8 +639,8 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
     <div class="dialog-body">
       <div class="security-box"><strong>서버 암호화 저장</strong><br>입력한 키는 TLS로 서버에 전달되고 AES-256-GCM으로 암호화되어 D1에는 암호문만 저장됩니다. 복호화 마스터 키는 Sites 비밀 환경변수에 분리되어 있습니다. 원문 키는 응답·로그·Git·브라우저 저장소에 남지 않습니다.</div>
       <div class="key-meta" id="key-meta">저장 상태 확인 중</div>
-      <div class="field"><label for="gemini-key">새 Gemini API 키</label><input id="gemini-key" type="password" autocomplete="off" spellcheck="false" placeholder="AIza..." maxlength="200"></div>
-      <p class="muted" style="font-size:11px;line-height:1.55">무료 티어는 저빈도 CTA 테스트에 사용할 수 있지만, 실제 Grounded Result는 일회성으로만 표시합니다. 키는 저장 후 다시 화면에 표시되지 않습니다.</p>
+      <div class="field"><label for="gemini-key">새 Gemini API 키</label><input id="gemini-key" type="password" autocomplete="off" spellcheck="false" placeholder="AQ.Ab8… 또는 AIza…" maxlength="512"></div>
+      <p class="muted" style="font-size:11px;line-height:1.55">Google AI Studio의 신규 <code>AQ.…</code> Authorization Key와 제한된 기존 <code>AIza…</code> Standard Key를 모두 지원합니다. 무료 티어는 저빈도 CTA 테스트에 사용할 수 있지만, 실제 Grounded Result는 일회성으로만 표시합니다. 키는 저장 후 다시 화면에 표시되지 않습니다.</p>
       <div id="settings-message" class="search-message hidden"></div>
     </div>
     <div class="dialog-foot">
@@ -962,7 +962,10 @@ async function releaseGeminiSearchLock(env, cooldownMs = 8000) {
 
 function validateGeminiKey(value) {
   const key = String(value || "").trim();
-  if (key.length < 20 || key.length > 200 || /\s/.test(key)) return null;
+  // Google does not publish a stable prefix/length contract. Accept both the
+  // current AQ.* auth keys and restricted legacy AIza* keys, while allowing
+  // only printable ASCII so the value is always safe in an HTTP header.
+  if (!/^[\x21-\x7E]{20,512}$/.test(key)) return null;
   return key;
 }
 
@@ -987,7 +990,7 @@ async function handleGeminiSettings(request, env) {
       let body;
       try { body = JSON.parse(raw); } catch (_) { return jsonResponse({ status: "invalid_json", message: "API 키 요청을 읽지 못했습니다." }, { status: 400 }); }
       const apiKey = validateGeminiKey(body && body.apiKey);
-      if (!apiKey) return jsonResponse({ status: "invalid_key", message: "공백 없는 유효한 API 키를 입력하세요." }, { status: 400 });
+      if (!apiKey) return jsonResponse({ status: "invalid_key", message: "Google AI Studio에서 복사한 전체 AQ.… 또는 AIza… 키를 입력하세요." }, { status: 400 });
       await ensureByokTable(env);
       const encrypted = await encryptByokSecret(apiKey, env);
       const now = new Date().toISOString();
@@ -1033,7 +1036,13 @@ async function handleGeminiKeyTest(request, env) {
     const result = await callGemini(apiKey, "Respond with the exact ASCII text OK and nothing else.", false);
     if (!result.response.ok) {
       const status = result.response.status;
-      const message = status === 403 ? "API 키 권한 또는 결제 프로젝트 설정을 확인하세요." : status === 429 ? "Gemini 호출 한도를 초과했습니다." : "Gemini 연결 테스트에 실패했습니다.";
+      const message = status === 401
+        ? "HTTP 401: 키가 인증되지 않았습니다. Google AI Studio에서 발급한 전체 AQ.… 또는 AIza… 키인지 확인하세요."
+        : status === 403
+          ? "HTTP 403: Gemini API 권한 또는 프로젝트 설정을 확인하세요."
+          : status === 429
+            ? "HTTP 429: 무료 티어가 0으로 설정됐거나 프로젝트 호출 한도를 초과했습니다."
+            : "HTTP " + status + ": Gemini 연결 테스트에 실패했습니다.";
       return jsonResponse({ status: "test_failed", message, httpStatus: status }, { status: status === 429 ? 429 : 502 });
     }
     return jsonResponse({ status: "ok", model: "gemini-2.5-flash-lite", latencyMs: result.elapsed });
@@ -1120,7 +1129,13 @@ async function handleGeminiSearch(request, env) {
     const result = await callGemini(apiKey, sourcingPrompt(input), true);
     if (!result.response.ok) {
       const status = result.response.status;
-      const message = status === 403 ? "Gemini Search 권한 또는 결제 설정을 확인하세요." : status === 429 ? "Gemini 무료 티어 또는 프로젝트 호출 한도를 초과했습니다." : "Gemini Search 호출을 완료하지 못했습니다.";
+      const message = status === 401
+        ? "Gemini가 저장된 키를 인증하지 못했습니다. 설정에서 AQ.… 또는 AIza… 키를 다시 저장하고 연결 테스트를 실행하세요."
+        : status === 403
+          ? "Gemini Search 권한 또는 프로젝트 설정을 확인하세요."
+          : status === 429
+            ? "Gemini 무료 티어가 0으로 설정됐거나 프로젝트 호출 한도를 초과했습니다."
+            : "Gemini Search 호출을 완료하지 못했습니다. (HTTP " + status + ")";
       return jsonResponse({ status: "api_error", message, httpStatus: status, fallbackUrl }, { status: status === 429 ? 429 : 502 });
     }
     const candidate = result.payload && result.payload.candidates && result.payload.candidates[0];
