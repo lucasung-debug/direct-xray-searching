@@ -64,7 +64,7 @@ class MockD1 {
 const DB = new MockD1();
 const env = { DB, BYOK_MASTER_KEY: "11".repeat(32), CPO_OWNER_EMAIL_HASH: testOwnerHash };
 const origin = "https://cpo.example";
-const fakeKey = "unit_test_key_not_real_0000000000003456";
+const fakeKey = "AQ.Ab8" + "x".repeat(240) + "3456";
 const request = (path, init = {}) => new Request(origin + path, init);
 const settingsHeaders = { origin, "x-cpo-settings": "1", "oai-authenticated-user-email": testOwnerEmail };
 const searchHeaders = { origin, "x-cpo-search": "1", "content-type": "application/json", "oai-authenticated-user-email": testOwnerEmail };
@@ -75,6 +75,8 @@ const home = await response.text();
 assert.match(home, /Settings · BYOK/);
 assert.match(home, /REFERENCE PARITY/);
 assert.doesNotMatch(home, new RegExp(fakeKey));
+assert.match(home, /AQ\./);
+assert.match(home, /maxlength="512"/);
 assert.match(home, /sandbox","allow-popups allow-popups-to-escape-sandbox/);
 assert.doesNotMatch(home, /sandbox","[^"]*allow-scripts/);
 
@@ -94,6 +96,13 @@ assert.equal(response.status, 403, "mutating settings request requires exact Ori
 
 response = await worker.fetch(request("/api/settings/gemini", { headers: settingsHeaders }), env);
 assert.deepEqual(await response.json(), { status: "ok", configured: false, masked: null, updatedAt: null });
+
+response = await worker.fetch(request("/api/settings/gemini", {
+  method: "PUT",
+  headers: { ...settingsHeaders, "content-type": "application/json" },
+  body: JSON.stringify({ apiKey: "AQ.Ab8" + "x".repeat(600) }),
+}), env);
+assert.equal(response.status, 400, "oversized auth keys are rejected before storage");
 
 response = await worker.fetch(request("/api/settings/gemini", {
   method: "PUT",
@@ -120,6 +129,8 @@ assert.notEqual(DB.secret.cipher_b64, firstCipher, "AES-GCM must use a fresh IV"
 let capturedPrompt = "";
 globalThis.fetch = async (_url, init) => {
   assert.equal(init.headers["x-goog-api-key"], fakeKey);
+  assert.equal(init.headers.authorization, undefined);
+  assert.doesNotMatch(String(_url), /[?&]key=/, "BYOK key must never be put in the URL");
   const body = JSON.parse(init.body);
   capturedPrompt = body.contents[0].parts[0].text;
   if (body.tools) {
