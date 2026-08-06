@@ -1026,9 +1026,12 @@ async function discoverGeminiModels(apiKey) {
     try {
       const response = await fetch("https://generativelanguage.googleapis.com/" + apiVersion + "/models?pageSize=1000", {
         method: "GET",
-        headers: { "x-goog-api-key": apiKey },
+        headers: {
+          "x-goog-api-key": apiKey,
+          "cache-control": "no-store",
+          pragma: "no-cache",
+        },
         redirect: "error",
-        cache: "no-store",
         signal: typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(10000) : undefined,
       });
       let payload = null;
@@ -1066,10 +1069,14 @@ async function callGeminiModel(apiKey, model, apiVersion, prompt, useSearch) {
   const started = Date.now();
   const response = await fetch(endpoint, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+    headers: {
+      "content-type": "application/json",
+      "x-goog-api-key": apiKey,
+      "cache-control": "no-store",
+      pragma: "no-cache",
+    },
     body: JSON.stringify(body),
     redirect: "error",
-    cache: "no-store",
     signal: typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(30000) : undefined,
   });
   const elapsed = Date.now() - started;
@@ -1143,10 +1150,22 @@ function geminiAttemptSummary(result) {
 async function handleGeminiKeyTest(request, env) {
   if (request.method !== "POST") return jsonResponse({ status: "method_not_allowed" }, { status: 405 });
   if (!await ownerActionAllowed(request, env, "x-cpo-settings", true)) return jsonResponse({ status: "forbidden" }, { status: 403 });
+  let apiKey;
   try {
-    const apiKey = await storedGeminiKey(env);
-    if (!apiKey) return jsonResponse({ status: "setup_required", message: "저장된 Gemini API 키가 없습니다." }, { status: 409 });
-    const result = await callGemini(apiKey, "Respond with the exact ASCII text OK and nothing else.", false);
+    apiKey = await storedGeminiKey(env);
+  } catch (_) {
+    console.error("gemini_test_storage_error");
+    return jsonResponse({ status: "storage_error", message: "저장된 키 암호문을 복호화하지 못했습니다. 키를 다시 저장한 뒤 연결 테스트를 실행하세요." }, { status: 500 });
+  }
+  if (!apiKey) return jsonResponse({ status: "setup_required", message: "저장된 Gemini API 키가 없습니다." }, { status: 409 });
+  let result;
+  try {
+    result = await callGemini(apiKey, "Respond with the exact ASCII text OK and nothing else.", false);
+  } catch (_) {
+    console.error("gemini_test_network_error");
+    return jsonResponse({ status: "network_error", message: "Gemini 네트워크 호출을 시작하지 못했습니다. 잠시 후 다시 시도하세요." }, { status: 502 });
+  }
+  try {
     if (!result.response.ok) {
       const status = result.response.status;
       const safeError = safeGeminiError(result);
@@ -1165,8 +1184,9 @@ async function handleGeminiKeyTest(request, env) {
       return jsonResponse({ status: "test_failed", message, httpStatus: status, errorCode: safeError.code, upstreamStatus: safeError.upstreamStatus, reason: safeError.reason, attemptedModels: result.attempts || [] }, { status: status === 429 ? 429 : 502 });
     }
     return jsonResponse({ status: "ok", model: result.model, fallbackUsed: result.model !== GEMINI_MODEL_PRIORITY[0], attemptedModels: result.attempts, latencyMs: result.elapsed });
-  } catch (error) {
-    return jsonResponse({ status: "test_error", message: "저장 키를 복호화하거나 Gemini에 연결하지 못했습니다." }, { status: 500 });
+  } catch (_) {
+    console.error("gemini_test_response_error");
+    return jsonResponse({ status: "response_error", message: "Gemini 응답을 처리하지 못했습니다. 잠시 후 다시 시도하세요." }, { status: 502 });
   }
 }
 
