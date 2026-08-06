@@ -134,19 +134,11 @@ globalThis.fetch = async (_url, init) => {
   assert.equal(init.headers["x-goog-api-key"], fakeKey);
   assert.equal(init.headers.authorization, undefined);
   assert.doesNotMatch(String(_url), /[?&]key=/, "BYOK key must never be put in the URL");
-  assert.equal(init.redirect, "error");
+  assert.equal(init.method, "POST", "fixed-priority generateContent calls do not require a model catalog request");
+  assert.equal(Object.hasOwn(init, "redirect"), false, "Sites runtime must receive the minimal proven fetch initializer");
   assert.equal(Object.hasOwn(init, "cache"), false, "Sites runtime must not receive the compatibility-gated RequestInit.cache field");
-  assert.equal(init.headers["cache-control"], "no-store");
-  assert.equal(init.headers.pragma, "no-cache");
-  if (init.method === "GET") {
-    assert.match(String(_url), /\/v1\/models\?pageSize=1000$/);
-    return new Response(JSON.stringify({
-      models: [
-        { name: "models/gemini-3.5-flash-lite", baseModelId: "gemini-3.5-flash-lite", supportedGenerationMethods: ["generateContent"] },
-        { name: "models/gemini-2.5-flash-lite", baseModelId: "gemini-2.5-flash-lite", supportedGenerationMethods: ["generateContent"] },
-      ],
-    }), { status: 200, headers: { "content-type": "application/json" } });
-  }
+  assert.equal(init.headers["cache-control"], undefined);
+  assert.equal(init.headers.pragma, undefined);
   const body = JSON.parse(init.body);
   capturedPrompt = body.contents[0].parts[0].text;
   const modelMatch = String(_url).match(/\/(v1(?:beta)?)\/models\/([A-Za-z0-9._-]+):generateContent$/);
