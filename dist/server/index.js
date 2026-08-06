@@ -640,7 +640,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
       <div class="security-box"><strong>서버 암호화 저장</strong><br>입력한 키는 TLS로 서버에 전달되고 AES-256-GCM으로 암호화되어 D1에는 암호문만 저장됩니다. 복호화 마스터 키는 Sites 비밀 환경변수에 분리되어 있습니다. 원문 키는 응답·로그·Git·브라우저 저장소에 남지 않습니다.</div>
       <div class="key-meta" id="key-meta">저장 상태 확인 중</div>
       <div class="field"><label for="gemini-key">새 Gemini API 키</label><input id="gemini-key" type="password" autocomplete="off" spellcheck="false" placeholder="AQ.Ab8… 또는 AIza…" maxlength="512"></div>
-      <p class="muted" style="font-size:11px;line-height:1.55">Google AI Studio의 신규 <code>AQ.…</code> Authorization Key와 제한된 기존 <code>AIza…</code> Standard Key를 모두 지원합니다. 무료 티어는 저빈도 CTA 테스트에 사용할 수 있지만, 실제 Grounded Result는 일회성으로만 표시합니다. 키는 저장 후 다시 화면에 표시되지 않습니다.</p>
+      <p class="muted" style="font-size:11px;line-height:1.55">Google AI Studio의 신규 <code>AQ.…</code> Authorization Key와 제한된 기존 <code>AIza…</code> Standard Key를 모두 지원합니다. 모델은 <code>Gemini 3.5 Flash-Lite</code>를 먼저 호출하고, 모델 404 또는 무료 티어 Grounding 제한이 있으면 <code>Gemini 2.5 Flash-Lite</code>로 한 번 전환합니다. 실제 Grounded Result는 일회성으로만 표시하며 키는 저장 후 다시 화면에 표시되지 않습니다.</p>
       <div id="settings-message" class="search-message hidden"></div>
     </div>
     <div class="dialog-foot">
@@ -737,7 +737,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         if(data.status==="ok"){
           successfulSearch=true;setParity("RP-03","same");setParity("RP-07","same");setParity("RP-10","same");
           byId("search-title").textContent="Grounded Result · 지금 검색 완료";
-          byId("search-subtitle").textContent="실행 query와 출처를 같은 사용자에게 즉시 표시합니다. 이 응답은 후보 DB에 저장되지 않습니다.";
+          byId("search-subtitle").textContent="실행 모델 · "+(data.model||"확인 불가")+(data.fallbackUsed?" · 2순위 fallback":"")+" · 이 응답은 후보 DB에 저장되지 않습니다.";
           byId("search-message").textContent=data.text||"검색 결과 본문이 없습니다.";
           var queries=data.groundingMetadata&&data.groundingMetadata.webSearchQueries||[];
           queries.forEach(function(query){var row=document.createElement("div");row.className="source";row.textContent="실행 검색어 · "+query;byId("search-sources").appendChild(row)});
@@ -794,7 +794,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         try{
           var response=await fetch("/api/settings/gemini/test",{method:"POST",headers:{"content-type":"application/json","x-cpo-settings":"1"},body:"{}"});
           var data=await response.json();if(!response.ok)throw new Error(data.message||"연결 실패");
-          settingsMessage("연결 성공 · "+data.model+" · "+data.latencyMs+"ms",false);setApiStatus("ok","BYOK 연결 테스트 성공");toast("Gemini API 연결을 확인했습니다.");
+          settingsMessage("연결 성공 · "+data.model+(data.fallbackUsed?" · 2순위 fallback":"")+" · "+data.latencyMs+"ms",false);setApiStatus("ok","BYOK 연결 테스트 성공");toast("Gemini API 연결을 확인했습니다.");
         }catch(error){settingsMessage(error.message||"연결 테스트에 실패했습니다.",true)}
         finally{await loadKeyStatus()}
       }
@@ -844,6 +844,8 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
 const BYOK_SECRET_ID = "gemini_api_key";
 const BYOK_AAD = new TextEncoder().encode("direct-xray-searching:gemini:v1");
 const BLOCKED_SEARCH_PATTERN = /(년생|년대생|생년|출생|나이|연령|졸업\s*연도|입학\s*연도|첫\s*직장\s*연도|birth\s*year|date\s*of\s*birth|\bage\b|graduation\s*year)/i;
+const GEMINI_MODEL_PRIORITY = Object.freeze(["gemini-3.5-flash-lite", "gemini-2.5-flash-lite"]);
+const GEMINI_API_VERSION_PRIORITY = Object.freeze(["v1", "v1beta"]);
 
 async function ownerActionAllowed(request, env, headerName, requireOrigin) {
   const url = new URL(request.url);
@@ -931,7 +933,15 @@ async function storedGeminiKey(env) {
 async function reserveDailyGeminiSearch(env, limit = 450) {
   await ensureByokTable(env);
   const now = new Date().toISOString();
-  const day = now.slice(0, 10);
+  // Gemini RPD quotas reset at midnight Pacific Time, including DST changes.
+  const quotaParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const quotaPart = (type) => quotaParts.find((part) => part.type === type)?.value || "00";
+  const day = quotaPart("year") + "-" + quotaPart("month") + "-" + quotaPart("day");
   await env.DB.prepare(
     "INSERT INTO cpo_gemini_usage_v1 (usage_day, request_count, updated_at) VALUES (?, 0, ?) ON CONFLICT(usage_day) DO NOTHING",
   ).bind(day, now).run();
@@ -1010,8 +1020,47 @@ async function handleGeminiSettings(request, env) {
   }
 }
 
-async function callGemini(apiKey, prompt, useSearch) {
-  const endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
+async function discoverGeminiModels(apiKey) {
+  const started = Date.now();
+  for (const apiVersion of GEMINI_API_VERSION_PRIORITY) {
+    try {
+      const response = await fetch("https://generativelanguage.googleapis.com/" + apiVersion + "/models?pageSize=1000", {
+        method: "GET",
+        headers: { "x-goog-api-key": apiKey },
+        redirect: "error",
+        cache: "no-store",
+        signal: typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(10000) : undefined,
+      });
+      let payload = null;
+      try { payload = await response.json(); } catch (_) {}
+      const available = new Set();
+      if (response.ok && payload && Array.isArray(payload.models)) {
+        for (const item of payload.models) {
+          const methods = Array.isArray(item && item.supportedGenerationMethods) ? item.supportedGenerationMethods : [];
+          if (!methods.some((method) => String(method).toLowerCase() === "generatecontent")) continue;
+          const names = [item && item.name, item && item.baseModelId];
+          for (const value of names) {
+            const model = String(value || "").replace(/^models\//, "");
+            if (/^[A-Za-z0-9._-]+$/.test(model)) available.add(model);
+          }
+        }
+      }
+      if (response.status !== 404 || apiVersion === GEMINI_API_VERSION_PRIORITY[GEMINI_API_VERSION_PRIORITY.length - 1]) {
+        return { response, payload, available, apiVersion, elapsed: Date.now() - started };
+      }
+    } catch (_) {
+      if (apiVersion === GEMINI_API_VERSION_PRIORITY[GEMINI_API_VERSION_PRIORITY.length - 1]) {
+        return { response: null, payload: null, available: null, apiVersion: null, elapsed: Date.now() - started };
+      }
+    }
+  }
+  return { response: null, payload: null, available: null, apiVersion: null, elapsed: Date.now() - started };
+}
+
+async function callGeminiModel(apiKey, model, apiVersion, prompt, useSearch) {
+  if (!GEMINI_MODEL_PRIORITY.includes(model)) throw new Error("Unsupported Gemini model.");
+  if (!GEMINI_API_VERSION_PRIORITY.includes(apiVersion)) throw new Error("Unsupported Gemini API version.");
+  const endpoint = "https://generativelanguage.googleapis.com/" + apiVersion + "/models/" + model + ":generateContent";
   const body = { contents: [{ parts: [{ text: prompt }] }] };
   if (useSearch) body.tools = [{ google_search: {} }];
   const started = Date.now();
@@ -1019,12 +1068,76 @@ async function callGemini(apiKey, prompt, useSearch) {
     method: "POST",
     headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify(body),
+    redirect: "error",
+    cache: "no-store",
     signal: typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(30000) : undefined,
   });
   const elapsed = Date.now() - started;
   let payload = null;
   try { payload = await response.json(); } catch (_) {}
-  return { response, payload, elapsed };
+  return { response, payload, elapsed, model, apiVersion };
+}
+
+function geminiFallbackAllowed(result, useSearch) {
+  const status = result && result.response && result.response.status;
+  if (status === 404) return true;
+  if (!useSearch) return false;
+  const error = result && result.payload && result.payload.error || {};
+  const details = Array.isArray(error.details) ? error.details : [];
+  const reason = details.map((item) => item && item.reason).filter(Boolean).join(" ");
+  const diagnosticText = [error.code, error.status, reason, compactText(error.message, 1200)].filter(Boolean).join(" ").toLowerCase();
+  if (/(api_key_invalid|api_key_service_blocked|service_disabled|authentication|unauthenticated)/.test(diagnosticText)) return false;
+  if (status === 429) return true;
+  return [400, 403, 501].includes(status) && /(google[_ ]?search|grounding|tool|model[_ ]?not[_ ]?found|not supported|unsupported|unimplemented)/.test(diagnosticText);
+}
+
+async function callGemini(apiKey, prompt, useSearch) {
+  const catalog = await discoverGeminiModels(apiKey);
+  if (catalog.response && catalog.response.status === 401) {
+    return { response: catalog.response, payload: catalog.payload, elapsed: catalog.elapsed, model: null, attempts: [], catalogStatus: 401 };
+  }
+  let models = GEMINI_MODEL_PRIORITY.slice();
+  if (catalog.response && catalog.response.ok && catalog.available) {
+    models = models.filter((model) => catalog.available.has(model));
+    if (!models.length) {
+      const payload = { error: { code: 404, status: "NOT_FOUND" } };
+      return {
+        response: new Response(JSON.stringify(payload), { status: 404, headers: { "content-type": "application/json" } }),
+        payload,
+        elapsed: catalog.elapsed,
+        model: null,
+        attempts: GEMINI_MODEL_PRIORITY.map((model) => ({ model, status: "NOT_LISTED" })),
+        catalogStatus: 200,
+      };
+    }
+  }
+  const attempts = [];
+  let lastResult = null;
+  for (let index = 0; index < models.length; index += 1) {
+    for (const apiVersion of GEMINI_API_VERSION_PRIORITY) {
+      const result = await callGeminiModel(apiKey, models[index], apiVersion, prompt, useSearch);
+      attempts.push({ model: result.model, apiVersion: result.apiVersion, status: result.response.status });
+      lastResult = { ...result, attempts: attempts.slice(), catalogStatus: catalog.response ? catalog.response.status : null };
+      if (result.response.ok) return lastResult;
+      if (result.response.status !== 404) break;
+    }
+    if (!geminiFallbackAllowed(lastResult, useSearch)) break;
+  }
+  return lastResult;
+}
+
+function safeGeminiError(result) {
+  const error = result && result.payload && result.payload.error || {};
+  const upstreamStatus = /^[A-Z0-9_]{2,80}$/.test(String(error.status || "")) ? String(error.status) : null;
+  const details = Array.isArray(error.details) ? error.details : [];
+  const foundReason = details.map((item) => item && item.reason).find((value) => /^[A-Z0-9_]{2,100}$/.test(String(value || "")));
+  const code = typeof error.code === "number" || /^[A-Za-z0-9_]{2,80}$/.test(String(error.code || "")) ? error.code : null;
+  return { upstreamStatus, reason: foundReason ? String(foundReason) : null, code };
+}
+
+function geminiAttemptSummary(result) {
+  const attempts = Array.isArray(result && result.attempts) ? result.attempts : [];
+  return attempts.map((item) => item.model + (item.apiVersion ? "@" + item.apiVersion : "") + "(" + item.status + ")").join(" → ");
 }
 
 async function handleGeminiKeyTest(request, env) {
@@ -1036,16 +1149,22 @@ async function handleGeminiKeyTest(request, env) {
     const result = await callGemini(apiKey, "Respond with the exact ASCII text OK and nothing else.", false);
     if (!result.response.ok) {
       const status = result.response.status;
-      const message = status === 401
+      const safeError = safeGeminiError(result);
+      const attemptSummary = geminiAttemptSummary(result);
+      const baseMessage = status === 401
         ? "HTTP 401: 키가 인증되지 않았습니다. Google AI Studio에서 발급한 전체 AQ.… 또는 AIza… 키인지 확인하세요."
         : status === 403
           ? "HTTP 403: Gemini API 권한 또는 프로젝트 설정을 확인하세요."
           : status === 429
             ? "HTTP 429: 무료 티어가 0으로 설정됐거나 프로젝트 호출 한도를 초과했습니다."
-            : "HTTP " + status + ": Gemini 연결 테스트에 실패했습니다.";
-      return jsonResponse({ status: "test_failed", message, httpStatus: status }, { status: status === 429 ? 429 : 502 });
+            : status === 404
+              ? "HTTP 404: 이 키의 프로젝트에서 우선순위 모델을 찾지 못했습니다. " + attemptSummary
+              : "HTTP " + status + ": Gemini 연결 테스트에 실패했습니다. " + attemptSummary;
+      const diagnostic = [safeError.upstreamStatus, safeError.reason, safeError.code].filter((value) => value != null).join("/");
+      const message = baseMessage + (diagnostic ? " · Google " + diagnostic : "");
+      return jsonResponse({ status: "test_failed", message, httpStatus: status, errorCode: safeError.code, upstreamStatus: safeError.upstreamStatus, reason: safeError.reason, attemptedModels: result.attempts || [] }, { status: status === 429 ? 429 : 502 });
     }
-    return jsonResponse({ status: "ok", model: "gemini-2.5-flash-lite", latencyMs: result.elapsed });
+    return jsonResponse({ status: "ok", model: result.model, fallbackUsed: result.model !== GEMINI_MODEL_PRIORITY[0], attemptedModels: result.attempts, latencyMs: result.elapsed });
   } catch (error) {
     return jsonResponse({ status: "test_error", message: "저장 키를 복호화하거나 Gemini에 연결하지 못했습니다." }, { status: 500 });
   }
@@ -1129,14 +1248,20 @@ async function handleGeminiSearch(request, env) {
     const result = await callGemini(apiKey, sourcingPrompt(input), true);
     if (!result.response.ok) {
       const status = result.response.status;
-      const message = status === 401
+      const safeError = safeGeminiError(result);
+      const attemptSummary = geminiAttemptSummary(result);
+      const baseMessage = status === 401
         ? "Gemini가 저장된 키를 인증하지 못했습니다. 설정에서 AQ.… 또는 AIza… 키를 다시 저장하고 연결 테스트를 실행하세요."
         : status === 403
-          ? "Gemini Search 권한 또는 프로젝트 설정을 확인하세요."
+          ? "Gemini Search Grounding 권한 또는 프로젝트 설정을 확인하세요. " + attemptSummary
           : status === 429
-            ? "Gemini 무료 티어가 0으로 설정됐거나 프로젝트 호출 한도를 초과했습니다."
-            : "Gemini Search 호출을 완료하지 못했습니다. (HTTP " + status + ")";
-      return jsonResponse({ status: "api_error", message, httpStatus: status, fallbackUrl }, { status: status === 429 ? 429 : 502 });
+            ? "Gemini 무료 티어가 0으로 설정됐거나 프로젝트 호출 한도를 초과했습니다. " + attemptSummary
+            : status === 404
+              ? "우선순위 모델을 찾지 못했습니다. " + attemptSummary
+              : "Gemini Search 호출을 완료하지 못했습니다. (HTTP " + status + ") " + attemptSummary;
+      const diagnostic = [safeError.upstreamStatus, safeError.reason, safeError.code].filter((value) => value != null).join("/");
+      const message = baseMessage + (diagnostic ? " · Google " + diagnostic : "");
+      return jsonResponse({ status: "api_error", message, httpStatus: status, errorCode: safeError.code, upstreamStatus: safeError.upstreamStatus, reason: safeError.reason, attemptedModels: result.attempts || [], fallbackUrl }, { status: status === 429 ? 429 : 502 });
     }
     const candidate = result.payload && result.payload.candidates && result.payload.candidates[0];
     const parts = candidate && candidate.content && candidate.content.parts || [];
@@ -1148,7 +1273,9 @@ async function handleGeminiSearch(request, env) {
     return jsonResponse({
       status: "ok",
       mode: "grounded_ephemeral",
-      model: "gemini-2.5-flash-lite",
+      model: result.model,
+      fallbackUsed: result.model !== GEMINI_MODEL_PRIORITY[0],
+      attemptedModels: result.attempts,
       text: text.slice(0, 50000),
       groundingMetadata: browserSafeGroundingMetadata(groundingMetadata),
       persistAllowed: false,
