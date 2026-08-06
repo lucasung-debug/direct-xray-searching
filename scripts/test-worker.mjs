@@ -127,12 +127,45 @@ assert.equal(response.status, 200);
 assert.notEqual(DB.secret.cipher_b64, firstCipher, "AES-GCM must use a fresh IV");
 
 let capturedPrompt = "";
+let forceAuthenticationFailure = false;
+let forceProjectPermissionFailure = false;
+const geminiCalls = [];
 globalThis.fetch = async (_url, init) => {
   assert.equal(init.headers["x-goog-api-key"], fakeKey);
   assert.equal(init.headers.authorization, undefined);
   assert.doesNotMatch(String(_url), /[?&]key=/, "BYOK key must never be put in the URL");
+  assert.equal(init.redirect, "error");
+  assert.equal(init.cache, "no-store");
+  if (init.method === "GET") {
+    assert.match(String(_url), /\/v1\/models\?pageSize=1000$/);
+    return new Response(JSON.stringify({
+      models: [
+        { name: "models/gemini-3.5-flash-lite", baseModelId: "gemini-3.5-flash-lite", supportedGenerationMethods: ["generateContent"] },
+        { name: "models/gemini-2.5-flash-lite", baseModelId: "gemini-2.5-flash-lite", supportedGenerationMethods: ["generateContent"] },
+      ],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }
   const body = JSON.parse(init.body);
   capturedPrompt = body.contents[0].parts[0].text;
+  const modelMatch = String(_url).match(/\/(v1(?:beta)?)\/models\/([A-Za-z0-9._-]+):generateContent$/);
+  assert.ok(modelMatch, "generateContent URL includes an allowlisted model");
+  const apiVersion = modelMatch[1];
+  const model = modelMatch[2];
+  geminiCalls.push({ model, apiVersion, useSearch: Boolean(body.tools) });
+  if (forceAuthenticationFailure) {
+    return new Response(JSON.stringify({ error: { code: 401, status: "UNAUTHENTICATED", details: [{ reason: "API_KEY_INVALID" }] } }), { status: 401, headers: { "content-type": "application/json" } });
+  }
+  if (forceProjectPermissionFailure) {
+    return new Response(JSON.stringify({ error: { code: 403, status: "PERMISSION_DENIED", details: [{ reason: "SERVICE_DISABLED" }] } }), { status: 403, headers: { "content-type": "application/json" } });
+  }
+  if (model === "gemini-3.5-flash-lite") {
+    const status = body.tools ? 429 : 404;
+    const errorStatus = body.tools ? "RESOURCE_EXHAUSTED" : "NOT_FOUND";
+    const reason = body.tools ? "QUOTA_EXCEEDED" : "MODEL_NOT_FOUND";
+    const message = body.tools ? "google_search free_tier quota unavailable for model gemini-3.5-flash-lite" : "model not found";
+    return new Response(JSON.stringify({ error: { code: status, status: errorStatus, message, details: [{ reason }] } }), { status, headers: { "content-type": "application/json" } });
+  }
+  assert.equal(model, "gemini-2.5-flash-lite");
   if (body.tools) {
     return new Response(JSON.stringify({
       candidates: [{
@@ -156,6 +189,12 @@ response = await worker.fetch(request("/api/search", {
 assert.equal(response.status, 200);
 const search = await response.json();
 assert.equal(search.status, "ok");
+assert.equal(search.model, "gemini-2.5-flash-lite");
+assert.equal(search.fallbackUsed, true);
+assert.deepEqual(search.attemptedModels, [
+  { model: "gemini-3.5-flash-lite", apiVersion: "v1", status: 429 },
+  { model: "gemini-2.5-flash-lite", apiVersion: "v1", status: 200 },
+]);
 assert.equal(search.persistAllowed, false);
 assert.ok(search.groundingMetadata);
 assert.match(capturedPrompt, /Privacy by Design/);
@@ -169,6 +208,21 @@ response = await worker.fetch(request("/api/search", {
 assert.equal(response.status, 409);
 assert.equal((await response.json()).status, "search_busy");
 
+DB.lock = null;
+forceProjectPermissionFailure = true;
+const beforePermissionFailureCalls = geminiCalls.length;
+response = await worker.fetch(request("/api/search", {
+  method: "POST",
+  headers: searchHeaders,
+  body: JSON.stringify({ job: "CPO", location: "대한민국", required: "privacy cloud ISMS" }),
+}), env);
+assert.equal(response.status, 502);
+const permissionFailure = await response.json();
+assert.equal(permissionFailure.httpStatus, 403);
+assert.equal(permissionFailure.reason, "SERVICE_DISABLED");
+assert.equal(geminiCalls.length, beforePermissionFailureCalls + 1, "project-wide 403 must not try another API version or model");
+forceProjectPermissionFailure = false;
+
 response = await worker.fetch(request("/api/search", {
   method: "POST",
   headers: searchHeaders,
@@ -179,7 +233,25 @@ assert.equal((await response.json()).status, "blocked_attribute");
 
 response = await worker.fetch(request("/api/settings/gemini/test", { method: "POST", headers: { ...settingsHeaders, "content-type": "application/json" }, body: "{}" }), env);
 assert.equal(response.status, 200);
-assert.equal((await response.json()).status, "ok");
+const keyTest = await response.json();
+assert.equal(keyTest.status, "ok");
+assert.equal(keyTest.model, "gemini-2.5-flash-lite");
+assert.equal(keyTest.fallbackUsed, true);
+assert.deepEqual(keyTest.attemptedModels, [
+  { model: "gemini-3.5-flash-lite", apiVersion: "v1", status: 404 },
+  { model: "gemini-3.5-flash-lite", apiVersion: "v1beta", status: 404 },
+  { model: "gemini-2.5-flash-lite", apiVersion: "v1", status: 200 },
+]);
+
+forceAuthenticationFailure = true;
+const beforeAuthFailureCalls = geminiCalls.length;
+response = await worker.fetch(request("/api/settings/gemini/test", { method: "POST", headers: { ...settingsHeaders, "content-type": "application/json" }, body: "{}" }), env);
+assert.equal(response.status, 502);
+const authFailure = await response.json();
+assert.equal(authFailure.httpStatus, 401);
+assert.equal(authFailure.upstreamStatus, "UNAUTHENTICATED");
+assert.equal(geminiCalls.length, beforeAuthFailureCalls + 1, "401 must not try the second model");
+forceAuthenticationFailure = false;
 
 response = await worker.fetch(request("/api/settings/gemini", { method: "DELETE", headers: settingsHeaders }), env);
 assert.equal(response.status, 200);
