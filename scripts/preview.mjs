@@ -18,42 +18,43 @@ class PreviewStatement {
     if (this.sql.startsWith("CREATE TABLE")) return { success: true, meta: { changes: 0 } };
     if (this.sql.startsWith("INSERT INTO cpo_byok_secrets_v1")) {
       const [secret_id, cipher_b64, iv_b64, last4, created_at, updated_at] = this.values;
-      this.db.secret = { secret_id, cipher_b64, iv_b64, last4, created_at, updated_at };
+      const prior = this.db.secrets.get(secret_id);
+      this.db.secrets.set(secret_id, { secret_id, cipher_b64, iv_b64, last4, created_at: prior?.created_at || created_at, updated_at });
       return { success: true, meta: { changes: 1 } };
     }
-    if (this.sql.startsWith("DELETE FROM cpo_byok_secrets_v1")) { this.db.secret = null; return { success: true, meta: { changes: 1 } }; }
+    if (this.sql.startsWith("DELETE FROM cpo_byok_secrets_v1")) { const changed = this.db.secrets.delete(this.values[0]) ? 1 : 0; return { success: true, meta: { changes: changed } }; }
     if (this.sql.startsWith("INSERT INTO cpo_gemini_usage_v1")) {
       const [day, now] = this.values;
       if (!this.db.usage.has(day)) this.db.usage.set(day, { request_count: 0, updated_at: now });
       return { success: true, meta: { changes: 1 } };
     }
     if (this.sql.startsWith("UPDATE cpo_gemini_usage_v1")) {
-      const [now, day, limit] = this.values; const row = this.db.usage.get(day);
-      if (!row || row.request_count >= limit) return { success: true, meta: { changes: 0 } };
-      row.request_count += 1; row.updated_at = now; return { success: true, meta: { changes: 1 } };
+      const [units, now, day, maximumBeforeReservation] = this.values; const row = this.db.usage.get(day);
+      if (!row || row.request_count > maximumBeforeReservation) return { success: true, meta: { changes: 0 } };
+      row.request_count += units; row.updated_at = now; return { success: true, meta: { changes: 1 } };
     }
-    if (this.sql.startsWith("INSERT INTO cpo_gemini_lock_v1")) {
-      const [leaseUntil, updatedAt, nowIso] = this.values;
-      if (!this.db.lock || this.db.lock.lease_until < nowIso) { this.db.lock = { lease_until: leaseUntil, updated_at: updatedAt }; return { success: true, meta: { changes: 1 } }; }
+    if (this.sql.startsWith("INSERT INTO cpo_search_lock_v2")) {
+      const [leaseToken, leaseUntil, updatedAt, nowIso] = this.values;
+      if (!this.db.lock || this.db.lock.lease_until < nowIso) { this.db.lock = { lease_token: leaseToken, lease_until: leaseUntil, updated_at: updatedAt }; return { success: true, meta: { changes: 1 } }; }
       return { success: true, meta: { changes: 0 } };
     }
-    if (this.sql.startsWith("UPDATE cpo_gemini_lock_v1")) { const [leaseUntil, updatedAt] = this.values; this.db.lock = { lease_until: leaseUntil, updated_at: updatedAt }; return { success: true, meta: { changes: 1 } }; }
+    if (this.sql.startsWith("UPDATE cpo_search_lock_v2")) { const [leaseUntil, updatedAt, leaseToken] = this.values; if (!this.db.lock || this.db.lock.lease_token !== leaseToken) return { success: true, meta: { changes: 0 } }; this.db.lock = { ...this.db.lock, lease_until: leaseUntil, updated_at: updatedAt }; return { success: true, meta: { changes: 1 } }; }
     if (this.sql.startsWith("INSERT INTO data_analytics_presentation_v1")) return { success: true };
     return { success: true };
   }
   async first() {
-    if (this.sql.startsWith("SELECT secret_id")) return this.db.secret;
+    if (this.sql.startsWith("SELECT secret_id")) return this.db.secrets.get(this.values[0]) || null;
     if (this.sql.includes("data_analytics_presentation_v1")) return null;
     return null;
   }
 }
 
 class PreviewD1 {
-  constructor() { this.secret = null; this.usage = new Map(); this.lock = null; }
+  constructor() { this.secrets = new Map(); this.usage = new Map(); this.lock = null; }
   prepare(sql) { return new PreviewStatement(this, sql); }
 }
 
-const env = { DB: new PreviewD1(), BYOK_MASTER_KEY: "22".repeat(32), CPO_OWNER_EMAIL_HASH: previewOwnerHash };
+const env = { DB: new PreviewD1(), BYOK_MASTER_KEY: "22".repeat(32), CPO_OWNER_EMAIL_HASH: previewOwnerHash, CPO_ALLOWED_HOST: "127.0.0.1" };
 const port = Number(process.env.CPO_PREVIEW_PORT || 4179);
 
 const server = http.createServer(async (incoming, outgoing) => {
