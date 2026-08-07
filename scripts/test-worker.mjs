@@ -9,8 +9,13 @@ if (!globalThis.atob) globalThis.atob = (value) => Buffer.from(value, "base64").
 const { default: worker } = await import("../worker/index.js");
 
 const testOwnerEmail = "owner@example.test";
-const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(testOwnerEmail));
-const testOwnerHash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+const testReviewerEmail = "reviewer@example.test";
+const emailHash = async (email) => {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+};
+const testOwnerHash = await emailHash(testOwnerEmail);
+const testReviewerHash = await emailHash(testReviewerEmail);
 
 class MockStatement {
   constructor(db, sql) { this.db = db; this.sql = sql; this.values = []; }
@@ -40,6 +45,36 @@ class MockStatement {
       row.updated_at = now;
       return { success: true, meta: { changes: 1 } };
     }
+    if (this.sql.startsWith("INSERT INTO cpo_actor_tavily_usage_v1")) {
+      const [day, actorHash, now] = this.values;
+      const key = day + "|" + actorHash;
+      if (!this.db.actorUsage.has(key)) this.db.actorUsage.set(key, { search_count: 0, reserved_credits: 0, updated_at: now });
+      return { success: true, meta: { changes: 1 } };
+    }
+    if (this.sql.startsWith("UPDATE cpo_actor_tavily_usage_v1")) {
+      if (this.sql.includes("reserved_credits = reserved_credits - ?")) {
+        const [credits, now, day, actorHash, minimumCredits] = this.values;
+        const row = this.db.actorUsage.get(day + "|" + actorHash);
+        if (!row || row.search_count < 1 || row.reserved_credits < minimumCredits) return { success: true, meta: { changes: 0 } };
+        row.search_count -= 1;
+        row.reserved_credits -= credits;
+        row.updated_at = now;
+        return { success: true, meta: { changes: 1 } };
+      }
+      const [credits, now, day, actorHash, maximumBeforeReservation] = this.values;
+      const row = this.db.actorUsage.get(day + "|" + actorHash);
+      if (!row || row.reserved_credits > maximumBeforeReservation) return { success: true, meta: { changes: 0 } };
+      row.search_count += 1;
+      row.reserved_credits += credits;
+      row.updated_at = now;
+      return { success: true, meta: { changes: 1 } };
+    }
+    if (this.sql.startsWith("INSERT INTO cpo_completed_search_v1")) {
+      if (this.db.failSignatureWrites) throw new Error("signature write failed");
+      const [actorHash, signatureHash, completedAt, expiresAt] = this.values;
+      this.db.signatures.set(actorHash + "|" + signatureHash, { completed_at: completedAt, expires_at: expiresAt });
+      return { success: true, meta: { changes: 1 } };
+    }
     if (this.sql.startsWith("INSERT INTO cpo_search_lock_v2")) {
       const [leaseToken, leaseUntil, updatedAt, nowIso] = this.values;
       if (!this.db.lock || this.db.lock.lease_until < nowIso) {
@@ -58,40 +93,70 @@ class MockStatement {
   }
   async first() {
     if (this.sql.startsWith("SELECT secret_id")) return this.db.secrets.get(this.values[0]) || null;
+    if (this.sql.startsWith("SELECT expires_at FROM cpo_completed_search_v1")) {
+      const [actorHash, signatureHash, now] = this.values;
+      const row = this.db.signatures.get(actorHash + "|" + signatureHash);
+      return row && row.expires_at > now ? row : null;
+    }
     throw new Error("Unexpected first SQL: " + this.sql);
   }
 }
 
 class MockD1 {
-  constructor() { this.secrets = new Map(); this.usage = new Map(); this.lock = null; }
+  constructor() { this.secrets = new Map(); this.usage = new Map(); this.actorUsage = new Map(); this.signatures = new Map(); this.lock = null; this.failSignatureWrites = false; }
   prepare(sql) { return new MockStatement(this, sql); }
 }
 
 const DB = new MockD1();
-const env = { DB, BYOK_MASTER_KEY: "11".repeat(32), CPO_OWNER_EMAIL_HASH: testOwnerHash, CPO_ALLOWED_HOST: "cpo.example" };
+const env = { DB, BYOK_MASTER_KEY: "11".repeat(32), CPO_OWNER_EMAIL_HASH: testOwnerHash, CPO_REVIEWER_EMAIL_HASH: testReviewerHash, CPO_ALLOWED_HOST: "cpo.example", CPO_SEARCH_SIGNATURE_TTL_SECONDS: "0", CPO_OWNER_TAVILY_DAILY_CREDIT_LIMIT: "10000", CPO_REVIEWER_TAVILY_DAILY_CREDIT_LIMIT: "10000" };
 const origin = "https://cpo.example";
 const fakeGeminiKey = "AQ.Ab8" + "g".repeat(240) + "3456";
 const fakeTavilyKey = "tvly-" + "t".repeat(48) + "7890";
 const request = (path, init = {}) => new Request(origin + path, init);
 const settingsHeaders = { origin, "x-cpo-settings": "1", "oai-authenticated-user-email": testOwnerEmail };
 const searchHeaders = { origin, "x-cpo-search": "1", "content-type": "application/json", "oai-authenticated-user-email": testOwnerEmail };
-const searchPayload = { preset: "cpo", job: "CPO", location: "대한민국", required: "privacy 10년 cloud ISMS", preferred: "CISO SaaS", additional: "Privacy by Design", mode: "initial", round: 0 };
+const reviewerSearchHeaders = { origin, "x-cpo-search": "1", "content-type": "application/json", "oai-authenticated-user-email": testReviewerEmail };
+const searchPayload = { preset: "cpo", job: "CPO", location: "대한민국", keywords: "개인정보보호책임자\nCPO\nCISO\nHead of Privacy\n정보보호실장", required: "privacy 10년 cloud ISMS", preferred: "CISO SaaS", additional: "Privacy by Design", mode: "initial", round: 0 };
 
 let response = await worker.fetch(request("/"), env);
 assert.equal(response.status, 200);
 const home = await response.text();
-assert.match(home, /Tavily로 후보 찾기/);
+assert.match(home, /키워드별 후보 찾기/);
+assert.match(home, /검색 키워드 · 한 줄에 하나/);
+assert.match(home, /필수 조건 · 최종 평가용/);
+assert.match(home, /검토 후보 0명/);
+assert.match(home, /아직 찾은 후보가 없습니다/);
+assert.match(home, /var snapshotCandidates = \[\]/);
+assert.doesNotMatch(home, /var snapshotCandidates = \[\s*\{/);
 assert.match(home, /Tavily Search · 후보 검색/);
-assert.match(home, /Gemini · JD 근거 구조화/);
+assert.match(home, /Gemini · 합집합 최종 JD 평가/);
 assert.match(home, /REFERENCE PARITY/);
 assert.match(home, /CPO 프리셋은 한국 공개 위치 근거가 확인된 후보만 자동 병합/);
 assert.doesNotMatch(home, /Google X-ray Grounding|Google Grounded Search|renderedContent|google_search/);
 assert.doesNotMatch(home, new RegExp(fakeGeminiKey));
 assert.doesNotMatch(home, new RegExp(fakeTavilyKey));
 assert.match(home, /function mergeSearchCandidates/);
-assert.match(home, /manual:Boolean\(existing\.manual\)/, "automatic matches preserve manual provenance");
+assert.match(home, /if\(existing\.manual\)/, "human-reviewed candidates have an explicit preservation branch");
 assert.match(home, /score:existing\.score/, "automatic matches preserve reviewed score");
+assert.match(home, /item\.id=existing\.id/, "automatic-only candidates accept the newest AI evaluation");
+assert.match(home, /function searchSignature\(\)/);
+assert.match(home, /return \["job","location","keywords","required","preferred","additional"\]/, "the browser duplicate guard ignores presentation-only preset labels");
+assert.match(home, /function searchInputIssue\(payload\)/, "the direct search and Google fallback share a client input guard");
+assert.doesNotMatch(home, /mode==="more"&&signature/, "the primary and secondary CTA share the duplicate-search guard");
+assert.match(home, /masked-output/, "share masking also hides search-result identities, evidence links, and keyword metrics");
+assert.match(home, /classList\.toggle\("masked-output",masked\)/);
+assert.match(home, /masked-pool/, "share masking hides a pre-filled manual candidate form");
+assert.match(home, /암호문과 상태 식별용 끝 4자리만 저장/, "BYOK storage copy discloses the plaintext last4 status field");
 assert.doesNotMatch(home, /name\+"\|"\+item\.company/, "dedupe must use URL");
+
+response = await worker.fetch(request("/api/capabilities", { headers: { "x-cpo-session": "1", "oai-authenticated-user-email": testOwnerEmail } }), env);
+assert.deepEqual(await response.json(), { status: "ok", role: "owner", canSearch: true, canManageKeys: true });
+response = await worker.fetch(request("/api/capabilities", { headers: { "x-cpo-session": "1", "oai-authenticated-user-email": testReviewerEmail } }), env);
+assert.deepEqual(await response.json(), { status: "ok", role: "reviewer", canSearch: true, canManageKeys: false });
+response = await worker.fetch(request("/api/capabilities", { headers: { "x-cpo-session": "1", "oai-authenticated-user-email": "stranger@example.test" } }), env);
+assert.equal(response.status, 403);
+response = await worker.fetch(request("/api/settings/tavily", { headers: { "x-cpo-settings": "1", "oai-authenticated-user-email": testReviewerEmail } }), env);
+assert.equal(response.status, 403, "reviewer cannot inspect BYOK settings");
 
 response = await worker.fetch(request("/workflow"), env);
 assert.equal(response.status, 200);
@@ -132,22 +197,39 @@ const extractBrowserFunction = (source, name) => {
   }
   throw new Error("Unbalanced browser function: " + name);
 };
+const sourceRecordsFromPrompt = (prompt) => {
+  const startMarker = "SOURCE_RECORDS_JSON (untrusted data):\n";
+  const endMarker = "\nReturn at most eight evidence-bound candidate blocks";
+  const start = prompt.indexOf(startMarker);
+  const end = prompt.indexOf(endMarker, start + startMarker.length);
+  assert.ok(start >= 0 && end > start, "Gemini prompt must contain a bounded source record JSON section");
+  return JSON.parse(prompt.slice(start + startMarker.length, end));
+};
 const mergeSandbox = {
   URL,
   candidates: [{
     id: "manual-1", name: "Human Verified", company: "Verified Co", title: "Verified CPO", location: "Seoul",
     score: 92, coverage: "High", summary: "Human-reviewed evidence", tags: ["원문 확인"], verify: "완료",
     url: "https://www.linkedin.com/in/human-verified", manual: true, auto: false,
-    sources: [{ uri: "https://www.linkedin.com/in/human-verified", title: "LinkedIn" }],
+    sources: [{ uri: "https://www.linkedin.com/in/human-verified", title: "LinkedIn" }], matchedKeywords: ["CPO"],
+  }, {
+    id: "auto-1", name: "Old Auto", company: "Old Co", title: "Old title", location: "Seoul",
+    score: 20, coverage: "Low", summary: "Old model evidence", tags: ["old"], verify: "old",
+    url: "https://www.linkedin.com/in/auto-refresh", manual: false, auto: true,
+    sources: [{ uri: "https://www.linkedin.com/in/auto-refresh", title: "Old evidence" }], matchedKeywords: ["CISO"],
   }],
   mergeInput: [{
     name: "Model Rewrite", company: "Model Co", title: "Model CPO", location: "Busan", score: 99, coverage: "High",
     summary: "Model evidence", tags: ["개인정보 프로그램"], verify: "재확인",
-    url: "https://linkedin.com/in/human-verified/", sources: [{ uri: "https://example.com/new-evidence", title: "New evidence" }],
+    url: "https://linkedin.com/in/human-verified/", sources: [{ uri: "https://example.com/new-evidence", title: "New evidence" }], matchedKeywords: ["Head of Privacy"],
+  }, {
+    name: "Fresh Auto", company: "Fresh Co", title: "Fresh CPO", location: "Seoul", score: 88, coverage: "High",
+    summary: "New model evidence", tags: ["privacy"], verify: "new",
+    url: "https://www.linkedin.com/in/auto-refresh", sources: [{ uri: "https://example.com/refreshed", title: "Refreshed evidence" }], matchedKeywords: ["CPO"],
   }, {
     name: "New Search Candidate", company: "New Co", title: "CISO", location: "Seoul", score: 70, coverage: "High",
     summary: "Search evidence", tags: ["ISMS 심사"], verify: "원문 확인",
-    url: "https://www.linkedin.com/in/new-search-candidate", sources: [{ uri: "https://www.linkedin.com/in/new-search-candidate", title: "Evidence" }],
+    url: "https://www.linkedin.com/in/new-search-candidate", sources: [{ uri: "https://www.linkedin.com/in/new-search-candidate", title: "Evidence" }], matchedKeywords: ["정보보호실장"],
   }],
 };
 vm.createContext(mergeSandbox);
@@ -157,12 +239,86 @@ vm.runInContext([
   extractBrowserFunction(home, "mergeSearchCandidates"),
   "mergeResult=mergeSearchCandidates(mergeInput);",
 ].join("\n"), mergeSandbox);
-assert.deepEqual({ ...mergeSandbox.mergeResult }, { added: 1, updated: 1, total: 2 });
+assert.deepEqual({ ...mergeSandbox.mergeResult }, { added: 1, updated: 2, total: 3 });
 assert.equal(mergeSandbox.candidates[0].manual, true);
 assert.equal(mergeSandbox.candidates[0].score, 92);
 assert.equal(mergeSandbox.candidates[0].summary, "Human-reviewed evidence");
 assert.equal(mergeSandbox.candidates[0].auto, true);
 assert.equal(mergeSandbox.candidates[0].sources.length, 2);
+assert.deepEqual(Array.from(mergeSandbox.candidates[0].matchedKeywords), ["CPO", "Head of Privacy"]);
+assert.equal(mergeSandbox.candidates[1].id, "auto-1");
+assert.equal(mergeSandbox.candidates[1].name, "Fresh Auto");
+assert.equal(mergeSandbox.candidates[1].score, 88);
+assert.equal(mergeSandbox.candidates[1].summary, "New model evidence");
+assert.equal(mergeSandbox.candidates[1].sources.length, 2);
+
+const manualSafetySandbox = { URL };
+vm.createContext(manualSafetySandbox);
+vm.runInContext([
+  extractBrowserFunction(home, "canonicalUrl"),
+  extractBrowserFunction(home, "linkedInProfileUrl"),
+  extractBrowserFunction(home, "manualCandidateTextIssue"),
+  "goodUrl=linkedInProfileUrl('https://kr.linkedin.com/in/public-cpo?trk=test');",
+  "badUrl=linkedInProfileUrl('https://example.com/in/public-cpo');",
+  "protectedIssue=manualCandidateTextIssue('1980년생 개인정보보호책임자');",
+  "privateIssue=manualCandidateTextIssue('연락처 candidate@example.com');",
+  "safeIssue=manualCandidateTextIssue('개인정보 프로그램과 ISMS 심사 대응을 이끈 CPO');",
+].join("\n"), manualSafetySandbox);
+assert.equal(manualSafetySandbox.goodUrl, "https://www.linkedin.com/in/public-cpo");
+assert.equal(manualSafetySandbox.badUrl, "");
+assert.equal(manualSafetySandbox.protectedIssue, "protected");
+assert.equal(manualSafetySandbox.privateIssue, "private");
+assert.equal(manualSafetySandbox.safeIssue, "");
+
+const fallbackFields = {
+  preset: { value: "cpo" }, job: { value: "CPO" }, location: { value: "대한민국" },
+  keywords: { value: "born 1980" }, required: { value: "" }, preferred: { value: "" }, additional: { value: "" },
+};
+const fallbackSafetySandbox = {
+  searchRound: 0,
+  openCalls: [],
+  toasts: [],
+  byId: (id) => fallbackFields[id],
+  toast(message) { fallbackSafetySandbox.toasts.push(message); },
+  window: { open(...args) { fallbackSafetySandbox.openCalls.push(args); } },
+};
+vm.createContext(fallbackSafetySandbox);
+vm.runInContext([
+  extractBrowserFunction(home, "manualCandidateTextIssue"),
+  extractBrowserFunction(home, "searchInputIssue"),
+  extractBrowserFunction(home, "showSearchInputIssue"),
+  extractBrowserFunction(home, "formPayload"),
+  extractBrowserFunction(home, "openFallback"),
+  "openFallback();protectedOpenCount=openCalls.length;",
+  "byId('keywords').value='45 yo';openFallback();ageYoOpenCount=openCalls.length;",
+  "byId('keywords').value='under 45';openFallback();ageRangeOpenCount=openCalls.length;",
+  "byId('keywords').value='candidate@example.com';openFallback();privateOpenCount=openCalls.length;",
+  "byId('keywords').value='82 10 1234 5678';openFallback();genericPhoneOpenCount=openCalls.length;",
+  "byId('keywords').value='CPO OR CISO';openFallback();nonAtomicOpenCount=openCalls.length;",
+  "byId('keywords').value='CPO; CISO';openFallback();semicolonOpenCount=openCalls.length;",
+  "byId('keywords').value='CPO | CISO';openFallback();pipeOpenCount=openCalls.length;",
+  "byId('keywords').value='CPO';openFallback();safeOpenCount=openCalls.length;",
+].join("\n"), fallbackSafetySandbox);
+assert.equal(fallbackSafetySandbox.protectedOpenCount, 0);
+assert.equal(fallbackSafetySandbox.ageYoOpenCount, 0);
+assert.equal(fallbackSafetySandbox.ageRangeOpenCount, 0);
+assert.equal(fallbackSafetySandbox.privateOpenCount, 0);
+assert.equal(fallbackSafetySandbox.genericPhoneOpenCount, 0);
+assert.equal(fallbackSafetySandbox.nonAtomicOpenCount, 0);
+assert.equal(fallbackSafetySandbox.semicolonOpenCount, 0);
+assert.equal(fallbackSafetySandbox.pipeOpenCount, 0);
+assert.equal(fallbackSafetySandbox.safeOpenCount, 1, "only a safe atomic keyword can leave the site through the Google fallback CTA");
+
+for (const unauthorizedSearchRequest of [
+  request("/api/search", { method: "POST", headers: { origin, "x-cpo-search": "1", "content-type": "application/json" }, body: JSON.stringify(searchPayload) }),
+  request("/api/search", { method: "POST", headers: { origin, "oai-authenticated-user-email": testOwnerEmail, "content-type": "application/json" }, body: JSON.stringify(searchPayload) }),
+  request("/api/search", { method: "POST", headers: { origin: "https://wrong.example", "x-cpo-search": "1", "oai-authenticated-user-email": testOwnerEmail, "content-type": "application/json" }, body: JSON.stringify(searchPayload) }),
+  request("/api/search", { method: "POST", headers: { origin, "x-cpo-search": "1", "oai-authenticated-user-email": "stranger@example.test", "content-type": "application/json" }, body: JSON.stringify(searchPayload) }),
+  new Request("https://wrong.example/api/search", { method: "POST", headers: { origin: "https://wrong.example", "x-cpo-search": "1", "oai-authenticated-user-email": testOwnerEmail, "content-type": "application/json" }, body: JSON.stringify(searchPayload) }),
+]) {
+  response = await worker.fetch(unauthorizedSearchRequest, env);
+  assert.equal(response.status, 403, "search requires the Sites host, exact origin, route header, and an allowlisted authenticated identity");
+}
 
 response = await worker.fetch(request("/api/settings/tavily", {
   method: "PUT", headers: { origin, "x-cpo-settings": "1", "content-type": "application/json" }, body: JSON.stringify({ apiKey: fakeTavilyKey }),
@@ -211,10 +367,12 @@ assert.notEqual(DB.secrets.get("tavily_api_key").cipher_b64, firstTavilyCipher, 
 let forceTavilyStatus = 0;
 let forceGeminiStatus = 0;
 let networkFailureProvider = "";
+let tavilyResponseMode = "normal";
 let tavilySearchCalls = 0;
 let tavilyUsageCalls = 0;
 let geminiCalls = 0;
 let capturedTavilyBody = null;
+let capturedTavilyBodies = [];
 let capturedGeminiPrompt = "";
 const structuredCandidateText = [
   "[CANDIDATE:C01]",
@@ -325,6 +483,7 @@ globalThis.fetch = async (url, init = {}) => {
     assert.equal(init.headers["x-goog-api-key"], undefined);
     assert.doesNotMatch(target, /fake|tvly-|[?&]api_key=/i);
     capturedTavilyBody = JSON.parse(init.body);
+    capturedTavilyBodies.push(capturedTavilyBody);
     assert.equal(capturedTavilyBody.search_depth, "advanced");
     assert.deepEqual(capturedTavilyBody.include_domains, ["linkedin.com/in"]);
     assert.equal(capturedTavilyBody.include_raw_content, false);
@@ -334,8 +493,23 @@ globalThis.fetch = async (url, init = {}) => {
     assert.ok(capturedTavilyBody.query.length <= 400);
     assert.match(capturedTavilyBody.query, /currently based in South Korea/i);
     assert.match(capturedTavilyBody.query, /Seoul, Gyeonggi, Incheon/i);
+    assert.doesNotMatch(capturedTavilyBody.query, /Privacy by Design|10년|SaaS/i, "JD evaluation criteria must not leak into atomic retrieval queries");
     if (networkFailureProvider === "tavily") throw new TypeError("network");
     if (forceTavilyStatus) return new Response(JSON.stringify({ detail: { error: "upstream detail must not leak" } }), { status: forceTavilyStatus, headers: { "content-type": "application/json" } });
+    if (tavilyResponseMode === "empty_object") return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+    if (tavilyResponseMode === "non_json") return new Response("not json", { status: 200, headers: { "content-type": "text/plain" } });
+    if (tavilyResponseMode === "many_valid") {
+      const batch = tavilySearchCalls;
+      return new Response(JSON.stringify({
+        usage: { credits: 2 },
+        results: Array.from({ length: 10 }, (_, index) => ({
+          title: `Bulk Korea Candidate ${batch}-${index} - CPO | Location: Seoul | LinkedIn`,
+          url: `https://www.linkedin.com/in/bulk-korea-${batch}-${index}`,
+          content: `Bulk Korea Candidate ${batch}-${index} is currently based in Seoul, South Korea and leads a privacy program.`,
+          score: 0.8,
+        })),
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     return new Response(JSON.stringify({
       query: capturedTavilyBody.query,
       usage: { credits: 2 },
@@ -655,6 +829,13 @@ globalThis.fetch = async (url, init = {}) => {
         url: "https://www.linkedin.com/in/korea-location-candidate",
         content: "근무지: 대한민국 서울특별시. ISMS-P 인증 심사를 이끈 개인정보보호 리더.",
         score: 0.86,
+      }, {
+        title: "Cross Query Conflict Candidate - CPO | LinkedIn",
+        url: "https://www.linkedin.com/in/cross-query-location-conflict",
+        content: capturedTavilyBody.query.includes('"개인정보보호책임자"')
+          ? "Cross Query Conflict Candidate is currently based in Seoul, South Korea and leads privacy."
+          : "Cross Query Conflict Candidate is currently based in London, United Kingdom and leads privacy.",
+        score: 0.85,
       }],
     }), { status: 200, headers: { "content-type": "application/json" } });
   }
@@ -670,8 +851,8 @@ globalThis.fetch = async (url, init = {}) => {
     assert.match(body.systemInstruction.parts[0].text, /protected traits/);
     capturedGeminiPrompt = body.contents[0].parts[0].text;
     const isKeyTest = capturedGeminiPrompt.includes("Respond with the exact ASCII text OK");
-    if (!isKeyTest) {
-      assert.doesNotMatch(capturedGeminiPrompt, /45세|External result|Duplicate should be removed|candidate@example\.com|private\.example|10-1234-5678|415 555 0123|Ben Gerber|United States|Swati Anuj Arya|Delhi, India|Pyongyang|North Korea|Korea University|Boston|Zurich privacy leader|Zurich, Switzerland|Seoul privacy project leader|Employer location confusion candidate|Singapore Candidate|Alex Foreign|London, United Kingdom|Company Field Candidate|Office Field Candidate|회사 위치 후보|본사 소재지 후보|First Person Foreign|Company Role Foreign|Whose Role Foreign|Bare First Person Foreign|Adjectival Foreign|Project Location Candidate|University Location Candidate|Jane Coworker Candidate|Jane Company Candidate|First Person Role Foreign|Appositive Current Foreign|Appositive Role Foreign|Parenthetical Foreign|Living Foreign|Ampersand Foreign|Split Company Field Candidate|Headquarters Segment Candidate|Bare Current Foreign|Gerund Foreign|Comma Based Foreign|Relative Foreign|Branded Headquarters Candidate|Branded Company Field Candidate|Actorless Location Candidate|Resident Foreign|Remote Foreign|Standalone Foreign|Content First UK Foreign|Content First India Foreign|Content First Korean Country Foreign|Parenthetical UK Foreign|Parenthetical India Foreign|City Only Foreign|Bay Area Foreign|Greater Bengaluru Foreign|New York Metro Foreign/);
+    if (!isKeyTest && tavilyResponseMode !== "many_valid") {
+      assert.doesNotMatch(capturedGeminiPrompt, /45세|External result|candidate@example\.com|private\.example|10-1234-5678|415 555 0123|Ben Gerber|United States|Swati Anuj Arya|Delhi, India|Pyongyang|North Korea|Korea University|Boston|Zurich privacy leader|Zurich, Switzerland|Seoul privacy project leader|Employer location confusion candidate|Singapore Candidate|Alex Foreign|London, United Kingdom|Company Field Candidate|Office Field Candidate|회사 위치 후보|본사 소재지 후보|First Person Foreign|Company Role Foreign|Whose Role Foreign|Bare First Person Foreign|Adjectival Foreign|Project Location Candidate|University Location Candidate|Jane Coworker Candidate|Jane Company Candidate|First Person Role Foreign|Appositive Current Foreign|Appositive Role Foreign|Parenthetical Foreign|Living Foreign|Ampersand Foreign|Split Company Field Candidate|Headquarters Segment Candidate|Bare Current Foreign|Gerund Foreign|Comma Based Foreign|Relative Foreign|Branded Headquarters Candidate|Branded Company Field Candidate|Actorless Location Candidate|Resident Foreign|Remote Foreign|Standalone Foreign|Content First UK Foreign|Content First India Foreign|Content First Korean Country Foreign|Parenthetical UK Foreign|Parenthetical India Foreign|City Only Foreign|Bay Area Foreign|Greater Bengaluru Foreign|New York Metro Foreign/);
       assert.match(capturedGeminiPrompt, /Global Korea Candidate/);
       assert.match(capturedGeminiPrompt, /Previously worked in Singapore/);
       assert.match(capturedGeminiPrompt, /Its employer is based in San Francisco/);
@@ -679,6 +860,7 @@ globalThis.fetch = async (url, init = {}) => {
       assert.match(capturedGeminiPrompt, /Seoul, KR \(Hybrid\)/);
       assert.match(capturedGeminiPrompt, /Jordan \| CPO/);
       assert.match(capturedGeminiPrompt, /근무지: 대한민국 서울특별시/);
+      assert.doesNotMatch(capturedGeminiPrompt, /Cross Query Conflict Candidate/, "conflicting current locations across keyword hits fail closed before AI evaluation");
       assert.match(capturedGeminiPrompt, /\[비직무정보 제거\]/);
       assert.match(capturedGeminiPrompt, /\[연락처 제거\]/);
       assert.match(capturedGeminiPrompt, /Requested work location: South Korea · Seoul\/Gyeonggi\/Incheon capital area/);
@@ -692,7 +874,7 @@ globalThis.fetch = async (url, init = {}) => {
     const model = modelMatch[2];
     if (forceGeminiStatus) return new Response(JSON.stringify({ error: { code: forceGeminiStatus, status: forceGeminiStatus === 401 ? "UNAUTHENTICATED" : "PERMISSION_DENIED", details: [{ reason: forceGeminiStatus === 401 ? "API_KEY_INVALID" : "SERVICE_DISABLED" }] } }), { status: forceGeminiStatus, headers: { "content-type": "application/json" } });
     if (model === "gemini-3.5-flash-lite") return new Response(JSON.stringify({ error: { code: 404, status: "NOT_FOUND", details: [{ reason: "MODEL_NOT_FOUND" }] } }), { status: 404, headers: { "content-type": "application/json" } });
-    const text = isKeyTest ? "OK" : structuredCandidateText;
+    const text = isKeyTest ? "OK" : tavilyResponseMode === "many_valid" ? "" : structuredCandidateText;
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }), { status: 200, headers: { "content-type": "application/json" } });
   }
   throw new Error("Unexpected upstream URL: " + target);
@@ -717,27 +899,47 @@ assert.deepEqual(geminiTest.attemptedModels, [
   { model: "gemini-2.5-flash-lite", apiVersion: "v1", status: 200 },
 ]);
 
+capturedTavilyBodies = [];
+const tavilyCallsBeforeAtomicSearch = tavilySearchCalls;
+const geminiCallsBeforeAtomicSearch = geminiCalls;
 response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify(searchPayload) }), env);
-assert.equal(response.status, 200);
+assert.equal(response.status, 200, await response.clone().text());
 const search = await response.json();
 assert.equal(search.status, "ok");
 assert.equal(search.mode, "tavily_gemini_ephemeral");
 assert.deepEqual(search.providers, { search: "tavily", structure: "gemini" });
 assert.equal(search.model, "gemini-2.5-flash-lite");
 assert.equal(search.fallbackUsed, true);
-assert.equal(search.usageCredits, 2);
+assert.equal(search.usageCredits, 10);
 assert.equal(search.locationPolicy, "strict_korea_public_evidence");
-assert.equal(search.locationFilteredCount, 52);
+assert.equal(search.locationFilteredCount, 53);
 assert.equal(search.persistAllowed, false);
-assert.equal(search.plannedQueries.length, 1);
+assert.equal(search.plannedQueries.length, 5);
 assert.match(search.plannedQueries[0], /site:linkedin\.com\/in/);
-assert.equal(search.executedQueries.length, 1);
+assert.equal(search.executedQueries.length, 5);
+assert.deepEqual(search.executedKeywords, ["개인정보보호책임자", "CPO", "CISO", "Head of Privacy", "정보보호실장"]);
+assert.deepEqual(search.searchPlan, {
+  strategy: "atomic_equal_union_then_ai",
+  keywords: search.executedKeywords,
+  queryCount: 5,
+  maxCredits: 10,
+  actorDailyCreditLimit: 10000,
+  perQueryMaxResults: 10,
+  geminiSourceCap: 50,
+  retrievalWeighting: false,
+  evaluationPasses: 1,
+});
+assert.equal(capturedTavilyBodies.length, 5);
+for (let index = 0; index < capturedTavilyBodies.length; index += 1) {
+  assert.match(capturedTavilyBodies[index].query, new RegExp(search.executedKeywords[index].replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
+}
 assert.equal(search.candidates.length, 4, "invented source IDs, excerpt mismatches, duplicates, foreign locations, and external URLs are excluded while valid Korea candidates remain reviewable");
 assert.equal(search.candidates[0].name, "Test Privacy Leader");
 assert.equal(search.candidates[0].url, "https://www.linkedin.com/in/test-privacy-leader");
 assert.equal(search.candidates[0].score, 84);
 assert.equal(search.candidates[0].source, "tavily_linkedin_gemini_structured");
 assert.deepEqual(search.candidates[0].sources, [{ uri: "https://www.linkedin.com/in/test-privacy-leader", title: "Test Privacy Leader - CISO / CPO at Example Platform | LinkedIn" }]);
+assert.deepEqual(search.candidates[0].matchedKeywords, search.executedKeywords);
 assert.equal(search.candidates[1].name, "Protected Candidate");
 assert.equal(search.candidates[1].summary, "Protected Candidate runs a privacy program.");
 assert.equal(search.candidates[2].name, "Contact Candidate");
@@ -746,8 +948,14 @@ assert.equal(search.candidates[3].name, "Global Korea Candidate");
 assert.equal(search.candidates[3].location, "Seoul, South Korea");
 assert.match(search.candidates[3].summary, /currently based in Seoul, South Korea/);
 assert.equal(search.sources.length, 4, "only final accepted candidate sources are exposed as accepted sources");
-assert.equal(search.searchAttempts[0].resultCount, 10);
-assert.equal(search.searchAttempts[0].acceptedResultCount, 4);
+assert.equal(search.searchAttempts.length, 5);
+assert.ok(search.searchAttempts.every((attempt) => attempt.status === 200 && attempt.credits === 2 && attempt.resultCount > 10));
+assert.equal(search.acceptedResultCount, 4);
+assert.equal(search.keywordMetrics.length, 5);
+assert.deepEqual(search.keywordMetrics.map((metric) => metric.keyword), search.executedKeywords);
+assert.ok(search.keywordMetrics.every((metric) => metric.rawResultCount > 10 && metric.uniqueProfileCount > 50 && metric.locationPassedProfileCount >= 4 && metric.finalAcceptedCandidateCount === 4));
+assert.equal(search.uniqueProfileCount > 50, true);
+assert.equal(search.duplicateHitCount > search.uniqueProfileCount, true);
 assert.equal(Object.hasOwn(search, "groundingMetadata"), false);
 assert.equal(JSON.stringify(search).includes("request_id"), false);
 assert.equal(JSON.stringify(search).includes(fakeGeminiKey), false);
@@ -755,17 +963,120 @@ assert.equal(JSON.stringify(search).includes(fakeTavilyKey), false);
 assert.doesNotMatch(JSON.stringify(search), /45세|candidate@example\.com|private\.example|10-1234-5678|415 555 0123|Ben Gerber|United States|Swati Anuj Arya|Delhi, India|Pyongyang|North Korea|Korea University|Boston|Zurich|Seoul privacy project leader|Employer location confusion candidate|Singapore Candidate|Alex Foreign|London|Company Field Candidate|Office Field Candidate|회사 위치 후보|본사 소재지 후보|First Person Foreign|Company Role Foreign|Whose Role Foreign|Bare First Person Foreign|Adjectival Foreign|Project Location Candidate|University Location Candidate|Jane Coworker Candidate|Jane Company Candidate|First Person Role Foreign|Appositive Current Foreign|Appositive Role Foreign|Parenthetical Foreign|Living Foreign|Ampersand Foreign|Split Company Field Candidate|Headquarters Segment Candidate|Bare Current Foreign|Gerund Foreign|Comma Based Foreign|Relative Foreign|Branded Headquarters Candidate|Branded Company Field Candidate|Actorless Location Candidate|Resident Foreign|Remote Foreign|Standalone Foreign|Content First UK Foreign|Content First India Foreign|Content First Korean Country Foreign|Parenthetical UK Foreign|Parenthetical India Foreign|City Only Foreign|Bay Area Foreign|Greater Bengaluru Foreign|New York Metro Foreign/);
 assert.ok(search.candidates.some((candidate) => candidate.name === "Global Korea Candidate"), "past foreign experience must not exclude a candidate whose current location is Seoul");
 assert.match(search.text, /현재 한국 위치 evidence/);
-assert.match(search.text, /해외 또는 위치 미확인 결과 52건은 제외/);
+assert.match(search.text, /해외 또는 위치 미확인 결과 53건은 제외/);
 assert.doesNotMatch(JSON.stringify(search.candidates), /Prompt Injection Candidate/, "unbound model signals cannot create a scored candidate");
 assert.doesNotMatch(JSON.stringify(search.candidates), /Unknown Location Candidate/, "UNKNOWN public location cannot pass the Korea location gate");
 assert.match(capturedGeminiPrompt, /Privacy by Design/);
 assert.match(capturedGeminiPrompt, /never output a URL/i);
-assert.equal(tavilySearchCalls, 1);
+assert.equal(tavilySearchCalls - tavilyCallsBeforeAtomicSearch, 5);
+assert.equal(geminiCalls - geminiCallsBeforeAtomicSearch, 3, "five retrieval calls feed one logical Gemini evaluation with model fallback attempts");
 assert.equal(Array.from(DB.usage.values())[0].request_count, 4, "CTA reserves maximum Gemini fallback attempts");
+assert.equal(Array.from(DB.actorUsage.entries()).find(([key]) => key.endsWith("|" + testOwnerHash))[1].reserved_credits, 10, "owner Tavily credits are reserved against a pseudonymous daily actor budget");
+const sourceRecordsInForwardKeywordOrder = sourceRecordsFromPrompt(capturedGeminiPrompt);
+assert.ok(sourceRecordsInForwardKeywordOrder.every((record) => !Object.hasOwn(record, "title")), "all evaluative title and snippet text stays inside the equal per-keyword evidence budget");
+assert.ok(sourceRecordsInForwardKeywordOrder.every((record) => !Object.hasOwn(record, "linkedin_url")), "Gemini receives source IDs and bounded public evidence, not profile URLs");
+assert.match(sourceRecordsInForwardKeywordOrder[0].snippet, /Test Privacy Leader - CISO \/ CPO at Example Platform/);
 
 response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify(searchPayload) }), env);
 assert.equal(response.status, 409);
 assert.equal((await response.json()).status, "search_busy");
+
+DB.lock = null;
+response = await worker.fetch(request("/api/search", { method: "POST", headers: reviewerSearchHeaders, body: JSON.stringify(searchPayload) }), env);
+assert.equal(response.status, 200, "the explicitly allowlisted reviewer can run search");
+assert.equal((await response.json()).status, "ok");
+response = await worker.fetch(request("/api/settings/gemini/test", { method: "POST", headers: { origin, "x-cpo-settings": "1", "content-type": "application/json", "oai-authenticated-user-email": testReviewerEmail }, body: "{}" }), env);
+assert.equal(response.status, 403, "reviewer cannot test or use the raw BYOK settings API");
+
+DB.lock = null;
+const reviewerUsageKey = Array.from(DB.actorUsage.keys()).find((key) => key.endsWith("|" + testReviewerHash));
+if (reviewerUsageKey) DB.actorUsage.delete(reviewerUsageKey);
+const callsBeforeReviewerBudgetBlock = tavilySearchCalls;
+response = await worker.fetch(request("/api/search", { method: "POST", headers: reviewerSearchHeaders, body: JSON.stringify({ ...searchPayload, additional: "reviewer budget boundary" }) }), { ...env, CPO_REVIEWER_TAVILY_DAILY_CREDIT_LIMIT: "2" });
+assert.equal(response.status, 429);
+const reviewerBudgetBlock = await response.json();
+assert.equal(reviewerBudgetBlock.status, "tavily_daily_limit");
+assert.equal(reviewerBudgetBlock.dailyCreditLimit, 2);
+assert.equal(tavilySearchCalls, callsBeforeReviewerBudgetBlock, "reviewer daily credit limit blocks before Tavily calls");
+assert.equal(JSON.stringify(reviewerBudgetBlock).includes(testReviewerEmail), false, "pseudonymous budget enforcement never exposes the reviewer email");
+
+DB.lock = null;
+const ownerUsageEntry = Array.from(DB.actorUsage.entries()).find(([key]) => key.endsWith("|" + testOwnerHash));
+const ownerUsageBeforeGeminiLimit = { ...ownerUsageEntry[1] };
+const geminiUsageRow = Array.from(DB.usage.values())[0];
+const geminiUsageBeforeLimit = geminiUsageRow.request_count;
+geminiUsageRow.request_count = 450;
+const callsBeforeGeminiBudgetBlock = tavilySearchCalls;
+response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, additional: "gemini budget rollback fixture" }) }), env);
+assert.equal(response.status, 429);
+assert.equal((await response.json()).status, "daily_limit");
+assert.equal(tavilySearchCalls, callsBeforeGeminiBudgetBlock, "Gemini budget rejection happens before all Tavily upstream calls");
+assert.deepEqual(
+  { search_count: ownerUsageEntry[1].search_count, reserved_credits: ownerUsageEntry[1].reserved_credits },
+  { search_count: ownerUsageBeforeGeminiLimit.search_count, reserved_credits: ownerUsageBeforeGeminiLimit.reserved_credits },
+  "a pre-Tavily Gemini budget rejection rolls back the actor Tavily reservation",
+);
+geminiUsageRow.request_count = geminiUsageBeforeLimit;
+
+DB.lock = null;
+const reversedKeywords = search.executedKeywords.slice().reverse().join("\n");
+response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, keywords: reversedKeywords }) }), env);
+assert.equal(response.status, 200);
+assert.deepEqual(sourceRecordsFromPrompt(capturedGeminiPrompt), sourceRecordsInForwardKeywordOrder, "keyword order cannot change source ordering or the equal-budget evidence sent to final evaluation");
+
+DB.lock = null;
+tavilyResponseMode = "many_valid";
+response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify(searchPayload) }), env);
+assert.equal(response.status, 422);
+const fiftySourceEvaluation = await response.json();
+assert.equal(fiftySourceEvaluation.status, "no_candidates");
+assert.equal(fiftySourceEvaluation.retrievedSourceCount, 50, "the full five-query union can reach final evaluation instead of being silently cut to 20");
+assert.equal(fiftySourceEvaluation.sourceCappedCount, 0);
+assert.equal(sourceRecordsFromPrompt(capturedGeminiPrompt).length, 50);
+assert.ok(fiftySourceEvaluation.keywordMetrics.every((metric) => metric.rawResultCount === 10 && metric.uniqueProfileCount === 10 && metric.locationPassedProfileCount === 10 && metric.finalAcceptedCandidateCount === 0));
+tavilyResponseMode = "normal";
+
+DB.lock = null;
+DB.signatures.clear();
+const idempotencyEnv = { ...env, CPO_SEARCH_SIGNATURE_TTL_SECONDS: "900" };
+const callsBeforeIdempotency = tavilySearchCalls;
+response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, additional: "idempotency fixture" }) }), idempotencyEnv);
+assert.equal(response.status, 200);
+assert.equal((await response.clone().json()).idempotencyRecorded, true);
+DB.lock = null;
+response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, keywords: search.executedKeywords.slice().reverse().join("\n"), additional: "idempotency fixture" }) }), idempotencyEnv);
+assert.equal(response.status, 409);
+const duplicateSearch = await response.json();
+assert.equal(duplicateSearch.status, "duplicate_search", "server normalizes keyword order when preventing a completed duplicate search");
+assert.equal(tavilySearchCalls - callsBeforeIdempotency, 5, "a completed duplicate does not consume another Tavily query batch");
+response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, preset: "custom", additional: "idempotency fixture" }) }), idempotencyEnv);
+assert.equal(response.status, 409);
+assert.equal((await response.json()).status, "duplicate_search", "presentation-only preset changes cannot bypass completed-search idempotency when effective search behavior is unchanged");
+assert.equal(tavilySearchCalls - callsBeforeIdempotency, 5);
+assert.equal(JSON.stringify(Array.from(DB.signatures.keys())).includes(testOwnerEmail), false, "completed-search state stores only hashes");
+DB.signatures.clear();
+
+DB.lock = null;
+DB.failSignatureWrites = true;
+response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, additional: "idempotency write failure fixture" }) }), idempotencyEnv);
+assert.equal(response.status, 200);
+assert.equal((await response.json()).idempotencyRecorded, false, "completed-search storage failures are observable instead of silently disabling duplicate protection");
+assert.equal(DB.signatures.size, 0);
+DB.failSignatureWrites = false;
+
+for (const mode of ["empty_object", "non_json"]) {
+  DB.lock = null;
+  tavilyResponseMode = mode;
+  const geminiBeforeMalformedSuccess = geminiCalls;
+  response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify(searchPayload) }), env);
+  assert.equal(response.status, 422, "a Tavily 2xx response without a result array is handled as an empty result set");
+  const emptyUpstream = await response.json();
+  assert.equal(emptyUpstream.status, "no_candidates");
+  assert.equal(emptyUpstream.keywordMetrics.length, 5);
+  assert.ok(emptyUpstream.keywordMetrics.every((metric) => metric.rawResultCount === 0 && metric.finalAcceptedCandidateCount === 0));
+  assert.equal(geminiCalls, geminiBeforeMalformedSuccess, "Gemini is not called for an empty Tavily result set");
+}
+tavilyResponseMode = "normal";
 
 DB.lock = null;
 response = await worker.fetch(request("/api/search", {
@@ -791,14 +1102,34 @@ assert.equal(cpoRoleOverride.locationPolicy, "strict_korea_public_evidence", "th
 assert.match(capturedTavilyBody.query, /currently based in South Korea/i);
 assert.doesNotMatch(capturedTavilyBody.query, /United States/i);
 
-for (const protectedVariant of ["1980년생 이상", "45세 이하만", "40대 후보", "born 1980", "DOB 확인", "기혼자만", "sexual orientation", "veteran status", "45 yo", "g\u200bender", "나\u200b이"]) {
+let upstreamBeforeInvalidKeywords = tavilySearchCalls;
+response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, keywords: "" }) }), env);
+assert.equal(response.status, 400);
+assert.equal((await response.json()).status, "invalid_keywords");
+response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, keywords: "one\ntwo\nthree\nfour\nfive\nsix" }) }), env);
+assert.equal(response.status, 400);
+assert.equal((await response.json()).status, "too_many_keywords");
+response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, keywords: "CPO\n45세 이하" }) }), env);
+assert.equal(response.status, 400);
+assert.equal((await response.json()).status, "blocked_attribute");
+assert.equal(tavilySearchCalls, upstreamBeforeInvalidKeywords, "invalid atomic keyword plans are blocked before upstream calls");
+
+for (const protectedVariant of ["1980년생 이상", "45세 이하만", "40대 후보", "born 1980", "DOB 확인", "기혼자만", "sexual orientation", "veteran status", "45 yo", "under 45", "g\u200bender", "나\u200b이"]) {
   DB.lock = null;
   response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, additional: protectedVariant }) }), env);
   assert.equal(response.status, 400);
   assert.equal((await response.json()).status, "blocked_attribute");
 }
 
-for (const privateVariant of ["candidate@example.com", "010-1234-5678", "+82 10-1234-5678", "+1 415 555 0123", "https://www.linkedin.com/in/someone"]) {
+for (const nonAtomicVariant of ["CPO OR CISO", "CPO/CISO", "CPO, CISO", "CPO && CISO", "CPO; CISO", "CPO | CISO", "site:linkedin.com CPO", "CPO -consultant"]) {
+  DB.lock = null;
+  response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, keywords: nonAtomicVariant }) }), env);
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).status, "non_atomic_keyword");
+}
+assert.equal(tavilySearchCalls, upstreamBeforeInvalidKeywords, "non-atomic search expressions are blocked before upstream calls");
+
+for (const privateVariant of ["candidate@example.com", "010-1234-5678", "+82 10-1234-5678", "82 10 1234 5678", "+1 415 555 0123", "https://www.linkedin.com/in/someone"]) {
   DB.lock = null;
   response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, additional: privateVariant }) }), env);
   assert.equal(response.status, 400);
@@ -860,4 +1191,4 @@ assert.equal(response.status, 409);
 setup = await response.json();
 assert.deepEqual(setup.missingProviders, ["tavily", "gemini"]);
 
-console.log("Worker dual-provider BYOK, Tavily search, source-bound Gemini structuring, merge, and safety contracts passed");
+console.log("Worker dual-provider BYOK, atomic Tavily union, source-bound final Gemini evaluation, reviewer auth, empty pool, and safety contracts passed");
