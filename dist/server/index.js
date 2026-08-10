@@ -595,10 +595,15 @@ const SOURCING_HTML = String.raw`<!doctype html>
     .state{border-radius:999px;padding:5px 7px;font-size:9px;font-weight:900;white-space:nowrap}.state.same,.state.expanded{background:var(--green-soft);color:var(--green)}.state.partial,.state.ready,.state.separated{background:var(--amber-soft);color:var(--amber)}.state.missing{background:var(--red-soft);color:var(--red)}
     .search-output{padding:22px}.search-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.search-head h2{margin:4px 0 5px;font-size:20px}
     .ephemeral{display:inline-flex;padding:6px 9px;border-radius:999px;background:var(--amber-soft);color:var(--amber);font-size:10px;font-weight:900}
-    .search-message{margin-top:15px;padding:14px;border-radius:12px;background:var(--soft);white-space:pre-wrap;line-height:1.65;font-size:13px;max-height:430px;overflow:auto}
-    .sources{display:grid;gap:7px;margin-top:14px}.source{display:flex;gap:8px;align-items:flex-start;padding:9px 10px;border:1px solid var(--line);border-radius:9px;text-decoration:none;font-size:11px}.source:hover{background:#f8faff}
-    .suggestions{margin-top:12px}.suggestion-panel{padding:12px;border:1px solid var(--line);border-radius:11px;background:#f8faff}.suggestion-title{font-size:10px;font-weight:900;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}.suggestion-links{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.suggestion-chip{display:inline-flex;align-items:center;min-height:32px;padding:7px 10px;border:1px solid #cad9ff;border-radius:999px;background:#fff;color:var(--blue);font-size:11px;font-weight:850;text-decoration:none}.suggestion-chip:hover{background:var(--blue-soft)}.fallback{display:inline-block;margin-top:12px;color:var(--blue);font-weight:850;font-size:12px}
-    .search-output.masked-output .sources,.search-output.masked-output .suggestions,.search-output.masked-output .fallback{display:none!important}
+    .search-progress{margin-top:18px;padding:18px;border:1px solid #d6deeb;border-radius:15px;background:linear-gradient(135deg,#fbfcff,#f4f7fc);overflow:hidden}
+    .search-progress-intro{display:flex;align-items:center;gap:13px}.search-status-icon{width:42px;height:42px;flex:0 0 42px;border-radius:14px;display:grid;place-items:center;background:var(--blue-soft);color:var(--blue);font-size:19px;font-weight:950}.search-progress-intro strong{display:block;font-size:14px}.search-progress-intro span{display:block;margin-top:4px;color:var(--muted);font-size:11px;line-height:1.45}
+    .search-progress[data-state="loading"] .search-status-icon{font-size:0;position:relative}.search-progress[data-state="loading"] .search-status-icon:after{content:"";width:17px;height:17px;border:2px solid #b9caff;border-top-color:var(--blue);border-radius:50%;animation:search-spin .8s linear infinite}.search-progress[data-state="success"] .search-status-icon{background:var(--green-soft);color:var(--green)}.search-progress[data-state="empty"] .search-status-icon{background:var(--amber-soft);color:var(--amber)}.search-progress[data-state="error"] .search-status-icon{background:var(--red-soft);color:var(--red)}
+    .search-track{height:7px;margin-top:17px;border-radius:999px;background:#e5eaf2;overflow:hidden}.search-progress-bar{position:relative;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#225eea,#57a0ff);transition:width .7s ease}.search-progress[data-state="loading"] .search-progress-bar:after{content:"";position:absolute;inset:0;width:45%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.72),transparent);animation:search-shimmer 1.25s ease-in-out infinite}
+    .search-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:15px}.search-step{position:relative;display:flex;align-items:center;gap:7px;min-width:0;color:#98a2b3;font-size:10px;font-weight:800}.search-step i{width:20px;height:20px;flex:0 0 20px;border-radius:50%;display:grid;place-items:center;background:#e9edf4;color:#7f899a;font-style:normal;font-size:9px}.search-step b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.search-step.complete{color:var(--green)}.search-step.complete i{background:var(--green-soft);color:var(--green)}.search-step.active{color:var(--blue)}.search-step.active i{background:var(--blue);color:#fff;box-shadow:0 0 0 5px rgba(34,94,234,.10)}.search-step.error{color:var(--red)}.search-step.error i{background:var(--red-soft);color:var(--red)}
+    .search-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.search-stat{padding:12px;border:1px solid var(--line);border-radius:11px;background:#fff}.search-stat strong{display:block;font-size:18px;color:var(--navy)}.search-stat span{display:block;margin-top:4px;color:var(--muted);font-size:10px;font-weight:750}
+    .search-message{margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--soft);white-space:pre-wrap;line-height:1.6;font-size:12px}.fallback{display:inline-block;margin-top:12px;color:var(--blue);font-weight:850;font-size:12px}
+    .search-output.masked-output .search-summary,.search-output.masked-output .search-message,.search-output.masked-output .fallback{display:none!important}
+    @keyframes search-spin{to{transform:rotate(360deg)}}@keyframes search-shimmer{from{transform:translateX(-130%)}to{transform:translateX(310%)}}
     .pool{padding:22px}.pool-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.pool-head h2{margin:4px 0 5px}
     .pills{display:flex;gap:6px;flex-wrap:wrap}.pill{display:inline-flex;border-radius:999px;padding:6px 8px;background:var(--soft);color:var(--muted);font-size:10px;font-weight:800}.pill.blue{background:var(--blue-soft);color:var(--blue)}.pill.green{background:var(--green-soft);color:var(--green)}.pill.amber{background:var(--amber-soft);color:var(--amber)}
     .cards{display:grid;gap:10px;margin-top:17px}.empty-pool{padding:34px 20px;border:1px dashed #b9c7dc;border-radius:14px;background:#f8faff;text-align:center}.empty-pool strong{display:block;font-size:16px}.empty-pool span{display:block;margin-top:7px;color:var(--muted);font-size:12px;line-height:1.6}.candidate{position:relative;display:grid;grid-template-columns:68px minmax(0,1fr);gap:14px;padding:16px;border:1px solid var(--line);border-radius:14px;background:#fff}.rank{position:absolute;top:10px;right:12px;color:#9aa4b5;font-size:10px;font-weight:900}
@@ -615,7 +620,8 @@ const SOURCING_HTML = String.raw`<!doctype html>
     .toast{position:fixed;right:22px;bottom:22px;z-index:60;max-width:380px;padding:12px 15px;border-radius:11px;background:#172033;color:#fff;box-shadow:var(--shadow);font-size:12px;opacity:0;transform:translateY(10px);pointer-events:none;transition:.2s}.toast.show{opacity:1;transform:none}
     .hidden{display:none!important}
     @media(max-width:980px){.layout{grid-template-columns:1fr}.sidebar{position:static}.flow{grid-template-columns:repeat(3,1fr)}.parity-grid{grid-template-columns:1fr}}
-    @media(max-width:640px){.topbar{height:auto;min-height:68px;padding:11px 14px}.brand>span:not(.brand-mark){display:none}.brand-mark{display:grid}.top-actions{gap:4px}.top-actions .btn{padding:8px 9px;font-size:11px}.top-actions .label{display:none}.layout{width:min(100% - 18px,1540px);margin-top:10px}.hero,.sidebar,.pool,.search-output{padding:18px}.hero h2{font-size:28px}.flow{grid-template-columns:repeat(2,1fr)}.manual-grid{grid-template-columns:1fr}.manual-grid .full{grid-column:auto}.candidate{grid-template-columns:58px minmax(0,1fr);padding:13px}.score{width:54px;height:54px;border-radius:15px}.card-foot{grid-column:1/-1}.parity-item{grid-template-columns:52px 1fr}}
+    @media(max-width:640px){.topbar{height:auto;min-height:68px;padding:11px 14px}.brand>span:not(.brand-mark){display:none}.brand-mark{display:grid}.top-actions{gap:4px}.top-actions .btn{padding:8px 9px;font-size:11px}.top-actions .label{display:none}.layout{width:min(100% - 18px,1540px);margin-top:10px}.hero,.sidebar,.pool,.search-output{padding:18px}.hero h2{font-size:28px}.flow{grid-template-columns:repeat(2,1fr)}.search-flow{grid-template-columns:1fr}.search-step b{white-space:normal}.search-summary{grid-template-columns:repeat(2,1fr)}.manual-grid{grid-template-columns:1fr}.manual-grid .full{grid-column:auto}.candidate{grid-template-columns:58px minmax(0,1fr);padding:13px}.score{width:54px;height:54px;border-radius:15px}.card-foot{grid-column:1/-1}.parity-item{grid-template-columns:52px 1fr}}
+    @media(prefers-reduced-motion:reduce){.search-progress-bar{transition:none}.search-progress[data-state="loading"] .search-status-icon:after,.search-progress[data-state="loading"] .search-progress-bar:after{animation:none}}
   </style>
 </head>
 <body>
@@ -672,7 +678,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         <div class="flow"><span><b>1</b>키워드 입력</span><span><b>2</b>개별 검색</span><span><b>3</b>합집합·중복 제거</span><span><b>4</b>AI 통합 평가</span><span><b>5</b>사람 검증</span><span><b>6</b>전체 재정렬</span></div>
       </section>
 
-      <details class="panel parity" open>
+      <details class="panel parity">
         <summary><span>REFERENCE PARITY · 지속 검증판</span><span class="parity-count" id="parity-count">상태 계산 중</span></summary>
         <div class="parity-grid" id="parity-grid"></div>
       </details>
@@ -682,9 +688,13 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
           <div><div class="eyebrow">Live search result</div><h2 id="search-title">키워드 검색 대기</h2><p class="muted" id="search-subtitle">한 줄씩 독립 검색 → URL 합집합·중복 제거 → Gemini 최종 평가 → 후보 풀 자동 병합 순서로 실행합니다.</p></div>
           <span class="ephemeral">후보 결과 저장 안 함 · EPHEMERAL</span>
         </div>
-        <div class="search-message" id="search-message">BYOK 설정에서 Tavily 검색 키와 Gemini 분석 키를 각각 저장하면 CLI 없이 이 사이트에서 바로 실행됩니다.</div>
-        <div class="sources" id="search-sources"></div>
-        <div class="suggestions" id="search-suggestions"></div>
+        <div class="search-progress" id="search-progress" data-state="idle" aria-live="polite" aria-busy="false">
+          <div class="search-progress-intro"><span class="search-status-icon" id="search-status-icon" aria-hidden="true">○</span><div><strong id="search-phase-title">검색 준비 완료</strong><span id="search-phase-copy">조건을 확인한 뒤 후보 찾기를 눌러주세요.</span></div></div>
+          <div class="search-track" role="progressbar" aria-label="후보 검색 진행 상태" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="search-progress-bar" id="search-progress-bar"></div></div>
+          <div class="search-flow" id="search-flow"><span class="search-step" data-search-step><i>1</i><b>검색 요청</b></span><span class="search-step" data-search-step><i>2</i><b>프로필 탐색</b></span><span class="search-step" data-search-step><i>3</i><b>직무 근거 확인</b></span><span class="search-step" data-search-step><i>4</i><b>AI 통합 평가</b></span><span class="search-step" data-search-step><i>5</i><b>후보 정리</b></span></div>
+        </div>
+        <div class="search-summary hidden" id="search-summary"><div class="search-stat"><strong id="summary-collected">0</strong><span>공개 프로필</span></div><div class="search-stat"><strong id="summary-role">0</strong><span>역할 근거 통과</span></div><div class="search-stat"><strong id="summary-evidence">0</strong><span>직무 근거 통과</span></div><div class="search-stat"><strong id="summary-final">0</strong><span>최종 검토 후보</span></div></div>
+        <div class="search-message" id="search-message">검색을 실행하면 진행 상태와 완료 요약만 표시됩니다.</div>
         <a class="fallback hidden" id="fallback-link" target="_blank" rel="noopener noreferrer">Google X-ray 검색으로 열기 ↗</a>
       </section>
 
@@ -719,7 +729,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
   <dialog id="settings-dialog">
     <div class="dialog-head"><div><div class="eyebrow">Settings · BYOK</div><h2 style="margin:5px 0 0">검색·분석 API 키</h2></div><button class="btn" id="settings-close" type="button">닫기</button></div>
     <div class="dialog-body">
-      <div class="security-box"><strong>서버 암호화 저장</strong><br>입력한 키는 TLS로 서버에 전달되고 AES-256-GCM으로 암호화됩니다. D1에는 암호문과 상태 식별용 끝 4자리만 저장되며, 복호화 마스터 키는 Sites 비밀 환경변수에 분리되어 있습니다. 전체 원문 키는 응답·로그·Git·브라우저 저장소에 남지 않습니다.</div>
+      <div class="security-box"><strong>서버 암호화 저장 · 승인된 검토자와 공용</strong><br>입력한 키는 TLS로 서버에 전달되고 AES-256-GCM으로 암호화됩니다. D1에는 암호문과 상태 식별용 끝 4자리만 저장되며, 복호화 마스터 키는 Sites 비밀 환경변수에 분리되어 있습니다. 승인된 검토자가 검색하면 이 사이트에 저장된 동일한 키와 공급자 쿼터를 사용하지만, 검토자는 키 원문·끝 4자리·설정 화면을 조회하거나 변경할 수 없습니다.</div>
       <section class="provider-box">
         <h3>Tavily Search · 후보 검색</h3>
         <div class="key-meta" id="tavily-key-meta">저장 상태 확인 중</div>
@@ -753,6 +763,15 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
       var fallbackUrl = "";
       var searchRound = 0;
       var lastSearchSignature = "";
+      var searchProgressTimer = 0;
+      var searchProgressPhase = 0;
+      var searchProgressPhases = [
+        {title:"검색 요청을 준비하고 있습니다",copy:"입력한 역할 키워드와 평가 조건을 안전하게 확인합니다."},
+        {title:"공개 프로필을 찾고 있습니다",copy:"역할 키워드별로 공개 LinkedIn 프로필을 탐색합니다."},
+        {title:"직무 근거를 확인하고 있습니다",copy:"역할 귀속과 한국 관련 직무 원문 근거를 확인합니다."},
+        {title:"AI가 후보를 통합 평가하고 있습니다",copy:"중복을 제거한 근거를 필수·우대 조건과 함께 평가합니다."},
+        {title:"후보 풀을 정리하고 있습니다",copy:"검토 가능한 후보를 합치고 우선순위를 정리합니다."}
+      ];
       var providerStatus = {tavily:false,gemini:false};
       var capabilities = {role:"unknown",canSearch:false,canManageKeys:false};
       var parity = [
@@ -895,35 +914,70 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         });
         return {added:added,updated:updated,total:added+updated};
       }
+      function clearSearchProgressTimer(){if(searchProgressTimer){clearInterval(searchProgressTimer);searchProgressTimer=0}}
+      function setSearchProgressPhase(index){
+        searchProgressPhase=Math.max(0,Math.min(searchProgressPhases.length-1,index));
+        var steps=byId("search-flow").querySelectorAll("[data-search-step]"),percentages=[10,30,54,78,94],phase=searchProgressPhases[searchProgressPhase];
+        steps.forEach(function(step,stepIndex){step.classList.toggle("complete",stepIndex<searchProgressPhase);step.classList.toggle("active",stepIndex===searchProgressPhase);step.classList.remove("error")});
+        byId("search-phase-title").textContent=phase.title;byId("search-phase-copy").textContent=phase.copy;
+        byId("search-progress-bar").style.width=percentages[searchProgressPhase]+"%";
+        byId("search-progress").querySelector("[role='progressbar']").setAttribute("aria-valuenow",String(percentages[searchProgressPhase]));
+      }
+      function startSearchProgress(keywordCount){
+        clearSearchProgressTimer();searchProgressPhase=0;
+        byId("search-progress").dataset.state="loading";byId("search-progress").setAttribute("aria-busy","true");byId("search-status-icon").textContent="";
+        byId("search-summary").classList.add("hidden");
+        byId("search-title").textContent="후보를 찾고 있습니다";
+        byId("search-subtitle").textContent=keywordCount+"개 역할 키워드를 검색하고 있습니다. 완료될 때까지 이 화면을 유지해 주세요.";
+        byId("search-message").textContent="검색 결과는 완료 후 후보 카드와 요약으로 표시됩니다.";
+        setSearchProgressPhase(0);
+        searchProgressTimer=setInterval(function(){if(searchProgressPhase<3)setSearchProgressPhase(searchProgressPhase+1)},4200);
+      }
+      function finishSearchProgress(state,title,copy){
+        clearSearchProgressTimer();var progress=byId("search-progress"),steps=byId("search-flow").querySelectorAll("[data-search-step]"),completed=state==="success"||state==="empty";
+        progress.dataset.state=state;progress.setAttribute("aria-busy","false");
+        if(completed){steps.forEach(function(step){step.classList.add("complete");step.classList.remove("active","error")});byId("search-progress-bar").style.width="100%";progress.querySelector("[role='progressbar']").setAttribute("aria-valuenow","100")}
+        else{steps.forEach(function(step,index){step.classList.toggle("error",index===searchProgressPhase);step.classList.remove("active")})}
+        byId("search-status-icon").textContent=state==="success"?"✓":state==="empty"?"0":"!";
+        byId("search-phase-title").textContent=title;byId("search-phase-copy").textContent=copy;
+      }
+      function renderSearchSummary(data,finalCount){
+        byId("summary-collected").textContent=String(Number(data.uniqueProfileCount)||0);
+        byId("summary-role").textContent=String(Number(data.roleMatchedProfileCount)||0);
+        byId("summary-evidence").textContent=String(Number(data.preGeminiPassedProfileCount)||Number(data.retrievedSourceCount)||0);
+        byId("summary-final").textContent=String(Number(finalCount)||0);
+        byId("search-summary").classList.remove("hidden");
+      }
+      function resetSearchPresentation(message){
+        clearSearchProgressTimer();searchProgressPhase=0;var progress=byId("search-progress"),steps=byId("search-flow").querySelectorAll("[data-search-step]");
+        progress.dataset.state="idle";progress.setAttribute("aria-busy","false");progress.querySelector("[role='progressbar']").setAttribute("aria-valuenow","0");
+        byId("search-status-icon").textContent="○";byId("search-progress-bar").style.width="0%";steps.forEach(function(step){step.classList.remove("complete","active","error")});
+        byId("search-phase-title").textContent="검색 준비 완료";byId("search-phase-copy").textContent="조건을 확인한 뒤 후보 찾기를 눌러주세요.";byId("search-summary").classList.add("hidden");
+        byId("search-message").textContent=message||"검색을 실행하면 진행 상태와 완료 요약만 표시됩니다.";
+      }
       function showSearchResult(data){
-        byId("search-sources").innerHTML="";byId("search-suggestions").innerHTML="";
         fallbackUrl=data.fallbackUrl||fallbackUrl||"";byId("fallback-link").href=fallbackUrl;byId("fallback-link").classList.toggle("hidden",!fallbackUrl);
-        var metrics=Array.isArray(data.keywordMetrics)?data.keywordMetrics:[];
-        metrics.forEach(function(metric){var row=document.createElement("div"),preGemini=Number(metric.preGeminiPassedProfileCount),roleMatched=Number(metric.roleMatchedProfileCount),koreaPassed=Number(metric.koreaEvidencePassedProfileCount),koreaMode=data.locationPolicy==="korea_professional_relevance_residency_agnostic";if(!Number.isFinite(preGemini))preGemini=Number(metric.locationPassedProfileCount)||0;if(!Number.isFinite(roleMatched))roleMatched=preGemini;if(!Number.isFinite(koreaPassed))koreaPassed=preGemini;row.className="source";row.textContent="키워드 성과 · "+String(metric.keyword||"")+" · raw "+(Number(metric.rawResultCount)||0)+" → URL 중복제거 "+(Number(metric.uniqueProfileCount)||0)+" → 역할 일치 "+roleMatched+(koreaMode?" → 한국 직무근거 "+koreaPassed:"")+" → Gemini 전달 "+preGemini+" → 최종후보 "+(Number(metric.finalAcceptedCandidateCount)||0);byId("search-suggestions").appendChild(row)});
         if(data.status==="ok"){
           var merged=mergeSearchCandidates(data.candidates||[]);
           successfulSearch=true;setParity("RP-03","same");setParity("RP-05","same");setParity("RP-07","same");setParity("RP-10","same");
-          byId("search-title").textContent="키워드별 검색 · 통합 평가 완료";
-          byId("search-subtitle").textContent=(Array.isArray(data.executedKeywords)?data.executedKeywords.length:0)+"개 키워드 독립 검색 → URL 합집합·중복 제거 → 거주지 필터 없음 → "+(data.model||"Gemini 확인 불가")+" 최종 평가"+(data.fallbackUsed?" · 2순위 fallback":"")+" · "+(Number(data.usageCredits)||0)+" credits · 신규 "+merged.added+"명 · 중복 재평가 "+merged.updated+"명 · 후보 결과 저장 안 함";
-          byId("search-message").textContent=data.text||"출처가 연결된 후보를 하단 풀에 병합했습니다.";
-          var planned=Array.isArray(data.plannedQueries)?data.plannedQueries:[];
-          planned.forEach(function(query){var row=document.createElement("div");row.className="source";row.textContent="설계 X-ray · "+query;byId("search-sources").appendChild(row)});
-          var queries=Array.isArray(data.executedQueries)?data.executedQueries:[];
-          queries.forEach(function(query){var row=document.createElement("div");row.className="source";row.textContent="Tavily 실행어 · "+query;byId("search-sources").appendChild(row)});
-          var sources=Array.isArray(data.sources)?data.sources:[];
-          sources.forEach(function(source,index){
-            var href=safeHttpUrl(source&&source.uri);if(!href)return;
-            var a=document.createElement("a");a.className="source";a.target="_blank";a.rel="noopener noreferrer";a.href=href;
-            a.textContent=(index+1)+". "+(source.title||source.uri);byId("search-sources").appendChild(a);
-          });
+          finishSearchProgress("success","검색이 완료되었습니다","검토 가능한 후보를 후보 풀에 반영했습니다.");
+          byId("search-title").textContent="검색 완료";
+          byId("search-subtitle").textContent="신규 "+merged.added+"명 · 중복 재평가 "+merged.updated+"명 · 현재 후보 풀 "+candidates.length+"명";
+          byId("search-message").textContent="후보 카드의 직무 근거와 공개 원문을 확인한 뒤 검토하세요.";
+          renderSearchSummary(data,Array.isArray(data.candidates)?data.candidates.length:0);
           renderCandidates();
-          toast("키워드별 검색 결과를 합쳐 최종 평가하고 후보 풀에 병합했습니다.");
+          toast("검색을 완료하고 후보 풀을 업데이트했습니다.");
+        }else if(data.status==="no_candidates"){
+          finishSearchProgress("empty","검색은 완료되었습니다","이번 조건에서는 검토 가능한 후보를 찾지 못했습니다.");
+          byId("search-title").textContent="검색 완료 · 후보 없음";
+          byId("search-subtitle").textContent="키워드나 평가 조건을 조정한 뒤 다시 검색해보세요.";
+          byId("search-message").textContent="공개 원문 근거가 충분한 후보만 전달하므로 검색 결과가 0명일 수 있습니다.";
+          renderSearchSummary(data,0);
         }else{
+          finishSearchProgress("error",data.status==="setup_required"?"API 설정이 필요합니다":"검색을 완료하지 못했습니다",data.status==="setup_required"?"소유자가 Tavily·Gemini 키를 설정해야 합니다.":"잠시 후 다시 시도하거나 Google 검색을 이용해 주세요.");
           byId("search-title").textContent=data.status==="setup_required"?"BYOK 키 설정 필요":"검색 결과 확인 필요";
-          byId("search-subtitle").textContent="서버 응답 상태: "+(data.status||"error");
+          byId("search-subtitle").textContent=data.status==="setup_required"?"검색을 실행하려면 API 연결이 필요합니다.":"요청이 정상적으로 끝나지 않았습니다.";
           byId("search-message").textContent=data.message||"검색을 완료하지 못했습니다.";
-          (Array.isArray(data.executedQueries)?data.executedQueries:[]).forEach(function(query){var row=document.createElement("div");row.className="source";row.textContent="Tavily 실행어 · "+query;byId("search-sources").appendChild(row)});
-          (Array.isArray(data.sources)?data.sources:[]).forEach(function(source,index){var href=safeHttpUrl(source&&source.uri);if(!href)return;var a=document.createElement("a");a.className="source";a.target="_blank";a.rel="noopener noreferrer";a.href=href;a.textContent=(index+1)+". "+(source.title||source.uri);byId("search-sources").appendChild(a)});
           if(data.status==="setup_required"){setApiStatus("warn","BYOK 키 미설정");if(capabilities.canManageKeys&&!byId("settings-dialog").open)byId("settings-dialog").showModal()}
         }
         if(data.idempotencyRecorded===false){byId("search-message").textContent+=(byId("search-message").textContent?" · ":"")+"서버 중복 방지 기록에 실패했습니다. 같은 조건을 바로 다시 실행하지 마세요."}
@@ -934,8 +988,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         var signature=searchSignature();
         if(signature&&signature===lastSearchSignature){toast("키워드나 평가 조건을 바꾼 뒤 다시 실행하세요. 같은 조건의 중복 검색은 막았습니다.");return}
         setBusy(true);
-        byId("search-title").textContent="키워드별 독립 검색 큐 실행 중";
-        byId("search-message").textContent="입력한 검색 키워드를 각각 exact 질의로 실행합니다. URL을 합친 뒤 서버가 역할어와 한국 관련 직무 원문 근거를 확인하고, 통과 결과만 Gemini가 마지막에 한 번 평가합니다. 현재 거주지는 필터링하지 않고 국적·시민권도 추론하지 않습니다.";
+        startSearchProgress(String(payload.keywords||"").split(/\r?\n/).map(function(value){return value.trim()}).filter(Boolean).length);
         try{
           var response=await fetch("/api/search",{method:"POST",headers:{"content-type":"application/json","x-cpo-search":"1"},body:JSON.stringify(payload)});
           var data=await response.json();if((data.status==="ok"||data.status==="no_candidates")&&Array.isArray(data.executedQueries)&&data.executedQueries.length)lastSearchSignature=signature;showSearchResult(data);
@@ -1020,8 +1073,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         candidates=snapshotCandidates.slice();searchRound=0;lastSearchSignature="";successfulSearch=false;fallbackUrl="";
         byId("search-title").textContent="키워드 검색 대기";
         byId("search-subtitle").textContent="한 줄씩 독립 검색 → URL 합집합·중복 제거 → Gemini 최종 평가 → 후보 풀 자동 병합 순서로 실행합니다.";
-        byId("search-message").textContent="후보 풀을 비웠습니다. 왼쪽 키워드를 조정한 뒤 다시 검색하세요.";
-        byId("search-sources").innerHTML="";byId("search-suggestions").innerHTML="";byId("fallback-link").classList.add("hidden");
+        resetSearchPresentation("후보 풀을 비웠습니다. 왼쪽 키워드를 조정한 뒤 다시 검색하세요.");byId("fallback-link").classList.add("hidden");
         renderCandidates();setParity("RP-03","ready");setParity("RP-05","ready");setParity("RP-07","partial");toast("후보 풀을 비웠습니다.")
       });
       byId("candidate-add").addEventListener("click",addCandidate);
