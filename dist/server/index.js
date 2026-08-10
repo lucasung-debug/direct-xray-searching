@@ -515,13 +515,38 @@ function sourceTextFor(url) {
   return SOURCE_TEXT.get(key) || null;
 }
 
+const PRODUCT_NAME = "Direct X-ray Searching";
+const DIRECT_XRAY_PRESETS = Object.freeze({
+  cpo: Object.freeze({
+    id: "cpo",
+    label: "CPO · 테스트 베드",
+    description: "개인정보·정보보호 리더를 찾는 첫 번째 역할 프리셋",
+    evaluationProfile: "privacy_security",
+    locationPolicy: "strict_korea_public_evidence",
+    fields: Object.freeze({
+      job: "CPO (Chief Privacy Officer)",
+      location: "대한민국 · 서울/수도권",
+      keywords: "개인정보보호책임자\nCPO\nCISO\nHead of Privacy\n정보보호실장",
+      required: "정보보호·개인정보보호 경력 10년 이상\n팀장급 이상 조직 리딩\nAWS 등 클라우드 운영 또는 보안 거버넌스\nISMS 인증·심사 대응",
+      preferred: "CPO/CISO 또는 이에 준하는 역할\n플랫폼·IT·SaaS·콘텐츠 기업\nAWS Security, CISSP, CISM, CISA, CCSP",
+      additional: "",
+    }),
+  }),
+});
+const DIRECT_XRAY_PRESET_FIELD_IDS = Object.freeze(["job", "location", "keywords", "required", "preferred", "additional"]);
+
+function directXrayPresetFor(input) {
+  const id = compactText(input && input.preset, 80).toLocaleLowerCase("en-US");
+  return id && Object.hasOwn(DIRECT_XRAY_PRESETS, id) ? DIRECT_XRAY_PRESETS[id] : null;
+}
+
 const SOURCING_HTML = String.raw`<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>CPO Direct Sourcing</title>
+  <title>${PRODUCT_NAME}</title>
   <style>
     :root {
       --ink:#172033; --muted:#657087; --line:#dce2ec; --soft:#f4f6fa; --paper:#fff;
@@ -595,7 +620,7 @@ const SOURCING_HTML = String.raw`<!doctype html>
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/"><span class="brand-mark">AI</span><span><strong>CPO Direct Sourcing</strong><span>Reference workflow · button-triggered search</span></span></a>
+    <a class="brand" href="/"><span class="brand-mark">DX</span><span><strong>${PRODUCT_NAME}</strong><span>Reusable role presets · button-triggered search</span></span></a>
     <div class="top-actions">
       <a class="btn" href="/workflow"><span class="label">기준·워크플로우</span> ↗</a>
       <button class="btn" id="mask-toggle" type="button" title="후보 출력만 가립니다. 좌측 검색 조건은 공동 검토를 위해 유지됩니다.">후보 출력 가림</button>
@@ -611,10 +636,10 @@ const SOURCING_HTML = String.raw`<!doctype html>
       <div class="runtime">
         <strong>실행 방식</strong><br>
         예약 실행 없음 · 버튼을 누를 때만 Tavily 공개 웹 검색 · Gemini는 합쳐진 결과를 마지막에 한 번 평가<br>
-        CPO 프리셋은 한국 공개 위치 근거가 확인된 후보만 자동 병합
+        대한민국 대상 검색은 현재 한국 공개 위치 근거가 확인된 후보만 자동 병합
         <div class="status-row"><span class="dot" id="api-dot"></span><span id="api-status">BYOK 상태 확인 중</span></div>
       </div>
-      <div class="field"><label for="preset">반복 채용 프리셋</label><select id="preset"><option value="cpo">CPO · 테스트 베드</option><option value="custom">자유 입력</option></select></div>
+      <div class="field"><label for="preset">반복 채용 프리셋</label><select id="preset"><option value="cpo">CPO · 테스트 베드</option><option value="custom">자유 입력</option></select><p class="muted" id="preset-summary" style="margin:6px 0 0;font-size:10px;line-height:1.5">등록된 역할 프리셋을 선택하거나 자유 입력으로 새 조건을 시험할 수 있습니다.</p></div>
       <div class="field"><label for="job">직무</label><input id="job" value="CPO (Chief Privacy Officer)" maxlength="120"></div>
       <div class="field"><label for="location">지역</label><input id="location" value="대한민국 · 서울/수도권" maxlength="120"></div>
       <div class="field"><label for="keywords">검색 키워드 · 한 줄에 하나</label><textarea id="keywords" maxlength="1200">개인정보보호책임자
@@ -719,14 +744,8 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
     (function(){
       "use strict";
       var snapshotCandidates = [];
-      var cpoDefaults = {
-        job:"CPO (Chief Privacy Officer)",
-        location:"대한민국 · 서울/수도권",
-        keywords:"개인정보보호책임자\nCPO\nCISO\nHead of Privacy\n정보보호실장",
-        required:"정보보호·개인정보보호 경력 10년 이상\n팀장급 이상 조직 리딩\nAWS 등 클라우드 운영 또는 보안 거버넌스\nISMS 인증·심사 대응",
-        preferred:"CPO/CISO 또는 이에 준하는 역할\n플랫폼·IT·SaaS·콘텐츠 기업\nAWS Security, CISSP, CISM, CISA, CCSP",
-        additional:""
-      };
+      var presetCatalog = ${JSON.stringify(DIRECT_XRAY_PRESETS)};
+      var presetFieldIds = ${JSON.stringify(DIRECT_XRAY_PRESET_FIELD_IDS)};
       var candidates = snapshotCandidates.slice();
       var masked = false;
       var busy = false;
@@ -752,6 +771,19 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
       function byId(id){return document.getElementById(id)}
       function esc(value){return String(value == null ? "" : value).replace(/[&<>"']/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]})}
       function toast(message){var el=byId("toast");el.textContent=message;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(function(){el.classList.remove("show")},2400)}
+      function renderPresetOptions(){
+        var select=byId("preset"),selected=select.value||"cpo";select.innerHTML="";
+        Object.keys(presetCatalog).forEach(function(id){var option=document.createElement("option"),preset=presetCatalog[id];option.value=id;option.textContent=preset.label;select.appendChild(option)});
+        var custom=document.createElement("option");custom.value="custom";custom.textContent="자유 입력";select.appendChild(custom);
+        select.value=Object.prototype.hasOwnProperty.call(presetCatalog,selected)?selected:"custom";
+      }
+      function applyPreset(id){
+        var preset=presetCatalog[id]||null,fields=preset&&preset.fields?preset.fields:{};
+        presetFieldIds.forEach(function(fieldId){byId(fieldId).value=preset?String(fields[fieldId]||""):""});
+        byId("preset-summary").textContent=preset
+          ? preset.description+" · 평가 프로필 "+preset.evaluationProfile
+          : "프리셋에 없는 직무를 직접 입력합니다. 직무 키워드 일치만 자동 검증하고 세부 적합성은 사람이 확인합니다.";
+      }
       function setBusy(value){busy=value;byId("search-button").disabled=value||!capabilities.canSearch;byId("more-button").disabled=value||!capabilities.canSearch||!lastSearchSignature;byId("reset-button").disabled=value||(!candidates.length&&!lastSearchSignature);byId("search-button").textContent=value?"키워드별 검색 중…":"키워드별 후보 찾기";byId("more-button").textContent=value?"키워드별 검색 중…":"키워드 바꿔 더 찾기"}
       function setApiStatus(kind,text){byId("api-dot").className="dot "+kind;byId("api-status").textContent=text}
       function setParity(id,state){for(var i=0;i<parity.length;i++){if(parity[i].id===id)parity[i].state=state}renderParity()}
@@ -1001,11 +1033,11 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         byId(provider+"-key-delete").addEventListener("click",function(){deleteProviderKey(provider)});
       });
       byId("preset").addEventListener("change",function(){
-        ["job","location","keywords","required","preferred","additional"].forEach(function(id){byId(id).value=this.value==="cpo"?cpoDefaults[id]:""},this);
-        if(this.value!=="cpo")byId("keywords").focus();
+        applyPreset(this.value);
+        if(this.value==="custom")byId("job").focus();
         searchRound=0;lastSearchSignature="";setBusy(false);
       });
-      renderParity();renderCandidates();setBusy(false);loadCapabilities();
+      renderPresetOptions();applyPreset(byId("preset").value);renderParity();renderCandidates();setBusy(false);loadCapabilities();
     })();
   </script>
 </body>
@@ -1514,19 +1546,13 @@ async function handleTavilyKeyTest(request, env) {
   return jsonResponse({ status: "ok", latencyMs: result.elapsed, creditConsumed: false });
 }
 
-const DEFAULT_CPO_SEARCH_KEYWORDS = Object.freeze([
-  "개인정보보호책임자",
-  "CPO",
-  "CISO",
-  "Head of Privacy",
-  "정보보호실장",
-]);
 const SEARCH_KEYWORD_MAX = 5;
 
 function searchKeywordsFor(input) {
+  const preset = directXrayPresetFor(input);
   const keywordValue = input && Object.hasOwn(input, "keywords")
     ? input.keywords
-    : usesStrictKoreaLocation(input || {}) ? DEFAULT_CPO_SEARCH_KEYWORDS.join("\n") : "";
+    : preset ? preset.fields.keywords : "";
   const raw = normalizePolicyText(keywordValue || "");
   const supplied = raw.split(/\r?\n/).map((value) => compactText(value, 100)).filter(Boolean);
   const seen = new Set();
@@ -1559,7 +1585,8 @@ function xrayQueriesFor(input) {
 }
 
 function xrayQueryFor(input) {
-  return xrayQueriesFor(input)[0] || "site:linkedin.com/in CPO Korea";
+  const role = safeSearchKeyword(input && input.job) || "role";
+  return xrayQueriesFor(input)[0] || 'site:linkedin.com/in "' + role + '" Korea';
 }
 
 function tavilyQueriesFor(input) {
@@ -1573,6 +1600,7 @@ function tavilyQueriesFor(input) {
 }
 
 function sourcingPrompt(input, sources) {
+  const signalProfile = searchEvaluationProfileFor(input);
   const sourceRecords = sources.map((source) => ({
     source_id: source.id,
     snippet: source.content,
@@ -1599,12 +1627,13 @@ function sourcingPrompt(input, sources) {
     "LOCATION: public location, or UNKNOWN",
     "LOCATION_EVIDENCE_EXCERPT: exact current/public location field or clause copied from that source, or UNKNOWN",
     "EVIDENCE_EXCERPT: one exact contiguous excerpt copied from that source snippet, with no paraphrase",
-    "SIGNALS: comma-separated values chosen only from executive_privacy_governance, privacy_program, cloud_security_governance, incident_regulatory_response, isms_audit, people_leadership, platform_data_context, security_certifications",
+    "SIGNALS: comma-separated values chosen only from " + Object.keys(signalProfile.weights).join(", "),
     "VERIFY: concise Korean list of required items not established by public evidence",
     "[END:C01]",
     "Increment the candidate id for each block. Keep every field on one line. The server maps SOURCE_ID to the URL; never output a URL.",
     "Omit a record unless NAME, LOCATION_EVIDENCE_EXCERPT, and EVIDENCE_EXCERPT occur verbatim in its supplied snippet.",
     "Only assign a SIGNAL when that same supplied record explicitly supports it. Do not calculate a score or claim that a person is qualified.",
+    signalProfile.promptInstruction,
     usesStrictKoreaLocation(input)
       ? "Omit a record unless LOCATION_EVIDENCE_EXCERPT is an exact current-location field or clause showing South Korea, Seoul, Gyeonggi, Incheon, or the Korean capital area. A school, project, responsibility, employer, or past location is never location evidence."
       : "Use only explicit public location evidence from the supplied record.",
@@ -1644,6 +1673,53 @@ const SEARCH_SIGNAL_PATTERNS = Object.freeze({
   platform_data_context: /(platform|\bSaaS\b|fintech|content company|data platform|플랫폼|핀테크|콘텐츠\s*기업|데이터\s*서비스)/i,
   security_certifications: /(CISSP|CISM|CISA|CCSP|AWS Security|정보보안기사|ISMS-P\s*(?:심사원|인증심사원))/i,
 });
+
+const GENERIC_SEARCH_SIGNAL_WEIGHTS = Object.freeze({ role_keyword_match: 40 });
+const GENERIC_SEARCH_SIGNAL_LABELS = Object.freeze({ role_keyword_match: "직무 키워드 일치" });
+const SEARCH_EVALUATION_PROFILES = Object.freeze({
+  privacy_security: Object.freeze({
+    id: "privacy_security",
+    weights: SEARCH_SIGNAL_WEIGHTS,
+    labels: SEARCH_SIGNAL_LABELS,
+    patterns: SEARCH_SIGNAL_PATTERNS,
+    promptInstruction: "Use the privacy and information-security signal ids only when the supplied snippet explicitly supports each named capability.",
+  }),
+  generic_role: Object.freeze({
+    id: "generic_role",
+    weights: GENERIC_SEARCH_SIGNAL_WEIGHTS,
+    labels: GENERIC_SEARCH_SIGNAL_LABELS,
+    patterns: Object.freeze({}),
+    promptInstruction: "Assign role_keyword_match only when the supplied snippet explicitly contains at least one requested atomic role keyword. Required and preferred text informs VERIFY only; do not invent specialized signal ids.",
+  }),
+});
+
+function searchEvaluationProfileFor(input) {
+  const preset = directXrayPresetFor(input);
+  const profileId = preset && Object.hasOwn(SEARCH_EVALUATION_PROFILES, preset.evaluationProfile)
+    ? preset.evaluationProfile
+    : CPO_ROLE_PATTERN.test(normalizePolicyText(input && input.job)) ? "privacy_security" : "generic_role";
+  return SEARCH_EVALUATION_PROFILES[profileId];
+}
+
+function sourceContainsSearchKeyword(sourceText, input) {
+  const normalizedSource = normalizedEvidenceText(sourceText);
+  return searchKeywordsFor(input).some((keyword) => {
+    const normalizedKeyword = normalizedEvidenceText(safeSearchKeyword(keyword));
+    if (!normalizedKeyword) return false;
+    if (/^[a-z0-9][a-z0-9+.#-]{0,30}$/i.test(normalizedKeyword)) {
+      const escaped = normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp("(?:^|[^a-z0-9])" + escaped + "(?:$|[^a-z0-9])", "i").test(normalizedSource);
+    }
+    return normalizedSource.includes(normalizedKeyword);
+  });
+}
+
+function sourceSupportsSearchSignal(profile, signal, sourceText, input) {
+  if (profile.id === "generic_role" && signal === "role_keyword_match") {
+    return sourceContainsSearchKeyword(sourceText, input);
+  }
+  return Boolean(profile.patterns[signal] && profile.patterns[signal].test(sourceText));
+}
 
 function candidateResponsePart(result) {
   const candidate = result && result.payload && Array.isArray(result.payload.candidates) ? result.payload.candidates[0] : null;
@@ -1757,8 +1833,9 @@ function isKoreaLocationRequest(value) {
 }
 
 function usesStrictKoreaLocation(input) {
+  const preset = directXrayPresetFor(input);
   return Boolean(input) && (
-    String(input.preset || "").toLowerCase() === "cpo"
+    Boolean(preset && preset.locationPolicy === "strict_korea_public_evidence")
     || CPO_ROLE_PATTERN.test(normalizePolicyText(input.job))
     || isKoreaLocationRequest(input.location)
   );
@@ -2033,6 +2110,7 @@ function structuredSearchCandidates(result, sources, input) {
   const text = candidateResponseText(result);
   if (!text) return { candidates: [], acceptedSourceIds: new Set(), locationFilteredCount: 0 };
   const strictKoreaLocation = usesStrictKoreaLocation(input);
+  const signalProfile = searchEvaluationProfileFor(input);
   const sourceMap = new Map(sources.map((source) => [source.id, source]));
   const seenSources = new Set();
   const locationRejectedSourceIds = new Set();
@@ -2074,14 +2152,14 @@ function structuredSearchCandidates(result, sources, input) {
     if (!sourceText.includes(normalizedEvidenceText(name)) || !sourceText.includes(normalizedEvidenceText(evidence))) continue;
     const signals = candidateField(match[2], "SIGNALS", 600).split(/[,;|]/)
       .map((item) => item.trim().toLowerCase())
-      .filter((item, index, values) => Object.hasOwn(SEARCH_SIGNAL_WEIGHTS, item) && values.indexOf(item) === index && SEARCH_SIGNAL_PATTERNS[item].test(source.title + " " + source.content));
+      .filter((item, index, values) => Object.hasOwn(signalProfile.weights, item) && values.indexOf(item) === index && sourceSupportsSearchSignal(signalProfile, item, source.title + " " + source.content, input));
     if (!signals.length) continue;
     const title = modelTitle && sourceText.includes(normalizedEvidenceText(modelTitle)) ? modelTitle : source.title.replace(/\s*[|·-]\s*LinkedIn\s*$/i, "");
     const company = modelCompany && modelCompany.toUpperCase() !== "UNKNOWN" && sourceText.includes(normalizedEvidenceText(modelCompany)) ? modelCompany : "회사 확인 필요";
     const location = modelLocation && modelLocation.toUpperCase() !== "UNKNOWN" && sourceText.includes(normalizedEvidenceText(modelLocation))
       ? modelLocation
       : "공개 정보 확인 필요";
-    const score = signals.reduce((sum, signal) => sum + SEARCH_SIGNAL_WEIGHTS[signal], 0);
+    const score = signals.reduce((sum, signal) => sum + signalProfile.weights[signal], 0);
     seenSources.add(sourceId);
     locationRejectedSourceIds.delete(sourceId);
     candidates.push({
@@ -2093,7 +2171,7 @@ function structuredSearchCandidates(result, sources, input) {
       score,
       coverage: score >= 70 && evidence.length >= 80 ? "High" : score >= 40 ? "Medium" : "Low",
       summary: evidence,
-      tags: signals.slice(0, 5).map((signal) => SEARCH_SIGNAL_LABELS[signal]),
+      tags: signals.slice(0, 5).map((signal) => signalProfile.labels[signal]),
       verify: [verify, "Tavily snippet 및 LinkedIn 원문 일치 확인", "모든 hard gate는 VERIFY"].filter(Boolean).join(" · "),
       url: source.url,
       sources: [{ uri: source.url, title: source.title }],
