@@ -116,7 +116,7 @@ const request = (path, init = {}) => new Request(origin + path, init);
 const settingsHeaders = { origin, "x-cpo-settings": "1", "oai-authenticated-user-email": testOwnerEmail };
 const searchHeaders = { origin, "x-cpo-search": "1", "content-type": "application/json", "oai-authenticated-user-email": testOwnerEmail };
 const reviewerSearchHeaders = { origin, "x-cpo-search": "1", "content-type": "application/json", "oai-authenticated-user-email": testReviewerEmail };
-const searchPayload = { preset: "cpo", job: "CPO", location: "대한민국", keywords: "개인정보보호책임자\nCPO\nCISO\nHead of Privacy\n정보보호실장", required: "privacy 10년 cloud ISMS", preferred: "CISO SaaS", additional: "Privacy by Design", mode: "initial", round: 0 };
+const searchPayload = { preset: "cpo", job: "CPO", location: "한국 관련 인재 · 현재 거주지 무관", keywords: "개인정보보호책임자\nCPO\nCISO\nHead of Privacy\n정보보호실장", required: "privacy 10년 cloud ISMS", preferred: "CISO SaaS", additional: "Privacy by Design", mode: "initial", round: 0 };
 
 let response = await worker.fetch(request("/"), env);
 assert.equal(response.status, 200);
@@ -133,7 +133,9 @@ assert.doesNotMatch(home, /var snapshotCandidates = \[\s*\{/);
 assert.match(home, /Tavily Search · 후보 검색/);
 assert.match(home, /Gemini · 합집합 최종 JD 평가/);
 assert.match(home, /REFERENCE PARITY/);
-assert.match(home, /대한민국 대상 검색은 현재 한국 공개 위치 근거가 확인된 후보만 자동 병합/);
+assert.match(home, /CPO 프리셋은 해외 거주자도 검색/);
+assert.match(home, /국적·시민권 자동 추론 안 함/);
+assert.match(home, /대상 시장·근무 조건/);
 assert.match(home, /var presetCatalog = \{"cpo":/);
 assert.match(home, /function renderPresetOptions\(\)/);
 assert.match(home, /function applyPreset\(id\)/);
@@ -173,9 +175,9 @@ assert.match(workflow, /후보 풀 자동 병합·사람의 원문 검증/);
 assert.match(workflow, /공급자 측 query 처리·로그/);
 assert.match(workflow, /Gemini 무료 티어에서는 입력·출력이 Google 제품 개선에 사용되거나 사람의 검토 대상/);
 assert.match(workflow, /Tavily Search API reference/);
-assert.match(workflow, /country: south korea/);
-assert.match(workflow, /강제 국가 필터가 아니라 한국 결과의 우선순위를 높이는 boost/);
-assert.match(workflow, /국내 학교·회사 소재지·과거 프로젝트만 있는 결과, 후보 본인과의 결속이 모호한 위치 문구는 후보 풀 자동 병합 전에 제외/);
+assert.match(workflow, /현재 거주지를 뜻하지 않는다/);
+assert.match(workflow, /현재 한국 위치 hard gate를 사용하지 않는다/);
+assert.match(workflow, /국적·시민권·민족 또는 출신을 추론하거나 점수화하지 않는다/);
 assert.equal(
   workflow.includes('{"id":"src_user_req_doc","label":"사용자 제공 CPO 요구사항","path":"analysis/user_cpo_requirements.md"},{"id":"src_age_law"'),
   false,
@@ -190,7 +192,8 @@ const manifestSourceIds = new Set(manifest.sources.map((source) => source.id));
 assert.ok(manifestSourceIds.has("src_tavily_doc"));
 assert.ok(manifestSourceIds.has("src_gemini_terms"));
 assert.match(manifest.blocks.find((block) => block.id === "gemini_cta_boundaries").body, /사람의 검토 대상/);
-assert.match(manifest.blocks.find((block) => block.id === "runtime_architecture").body, /한국·서울·경기·인천의 현재 위치 근거/);
+assert.match(manifest.blocks.find((block) => block.id === "runtime_architecture").body, /해외 거주자를 포함/);
+assert.match(manifest.blocks.find((block) => block.id === "runtime_architecture").body, /국적·시민권·민족 또는 출신을 추론하거나 점수화하지 않는다/);
 
 const extractBrowserFunction = (source, name) => {
   const start = source.indexOf("function " + name + "(");
@@ -460,15 +463,15 @@ const structuredCandidateText = [
   "VERIFY: 공개 위치 확인 필요",
   "[END:C07]",
   "[CANDIDATE:C08]",
-  "SOURCE_ID: S07",
-  "NAME: Global Korea Candidate",
-  "COMPANY: Global Platform",
-  "TITLE: Chief Privacy Officer",
-  "LOCATION: Seoul, South Korea",
-  "LOCATION_EVIDENCE_EXCERPT: currently based in Seoul, South Korea",
-  "EVIDENCE_EXCERPT: Global Korea Candidate, who is currently based in Seoul, South Korea, leads privacy governance at Global Platform.",
-  "SIGNALS: executive_privacy_governance, privacy_program, platform_data_context",
-  "VERIFY: 관련 경력과 조직 리딩 범위 확인",
+  "SOURCE_ID: S16",
+  "NAME: Singapore Candidate",
+  "COMPANY: UNKNOWN",
+  "TITLE: CPO",
+  "LOCATION: Singapore",
+  "LOCATION_EVIDENCE_EXCERPT: currently based in Singapore",
+  "EVIDENCE_EXCERPT: Singapore Candidate is currently based in Singapore; its employer is based in Seoul.",
+  "SIGNALS: executive_privacy_governance, privacy_program",
+  "VERIFY: 한국 관련 직무 근거와 근무 자격은 본인 확인 필요",
   "[END:C08]",
 ].join("\n");
 
@@ -497,9 +500,16 @@ globalThis.fetch = async (url, init = {}) => {
     assert.equal(capturedTavilyBody.include_answer, false);
     assert.equal(capturedTavilyBody.auto_parameters, false);
     assert.equal(capturedTavilyBody.max_results, 10);
-    assert.ok(capturedTavilyBody.query.length <= 400);
-    assert.match(capturedTavilyBody.query, /currently based in South Korea/i);
-    assert.match(capturedTavilyBody.query, /Seoul, Gyeonggi, Incheon/i);
+    assert.equal(Object.hasOwn(capturedTavilyBody, "country"), false, "Korea talent targeting must not use a current-country boost");
+    assert.ok(capturedTavilyBody.query.length <= 600);
+    if (capturedTavilyBody.query.includes("Use the recruiter-supplied work context")) {
+      assert.match(capturedTavilyBody.query, /Do not infer nationality, citizenship, ethnicity, or national origin/i);
+    } else {
+      assert.match(capturedTavilyBody.query, /Candidates may currently live in any country/i);
+      assert.match(capturedTavilyBody.query, /Korean business|PIPA|ISMS-P/i);
+    }
+    assert.match(capturedTavilyBody.query, /Do not infer nationality, citizenship, ethnicity, or national origin/i);
+    assert.doesNotMatch(capturedTavilyBody.query, /currently based in South Korea/i);
     assert.doesNotMatch(capturedTavilyBody.query, /Privacy by Design|10년|SaaS/i, "JD evaluation criteria must not leak into atomic retrieval queries");
     if (networkFailureProvider === "tavily") throw new TypeError("network");
     if (forceTavilyStatus) return new Response(JSON.stringify({ detail: { error: "upstream detail must not leak" } }), { status: forceTavilyStatus, headers: { "content-type": "application/json" } });
@@ -859,19 +869,23 @@ globalThis.fetch = async (url, init = {}) => {
     capturedGeminiPrompt = body.contents[0].parts[0].text;
     const isKeyTest = capturedGeminiPrompt.includes("Respond with the exact ASCII text OK");
     if (!isKeyTest && tavilyResponseMode !== "many_valid") {
-      assert.doesNotMatch(capturedGeminiPrompt, /45세|External result|candidate@example\.com|private\.example|10-1234-5678|415 555 0123|Ben Gerber|United States|Swati Anuj Arya|Delhi, India|Pyongyang|North Korea|Korea University|Boston|Zurich privacy leader|Zurich, Switzerland|Seoul privacy project leader|Employer location confusion candidate|Singapore Candidate|Alex Foreign|London, United Kingdom|Company Field Candidate|Office Field Candidate|회사 위치 후보|본사 소재지 후보|First Person Foreign|Company Role Foreign|Whose Role Foreign|Bare First Person Foreign|Adjectival Foreign|Project Location Candidate|University Location Candidate|Jane Coworker Candidate|Jane Company Candidate|First Person Role Foreign|Appositive Current Foreign|Appositive Role Foreign|Parenthetical Foreign|Living Foreign|Ampersand Foreign|Split Company Field Candidate|Headquarters Segment Candidate|Bare Current Foreign|Gerund Foreign|Comma Based Foreign|Relative Foreign|Branded Headquarters Candidate|Branded Company Field Candidate|Actorless Location Candidate|Resident Foreign|Remote Foreign|Standalone Foreign|Content First UK Foreign|Content First India Foreign|Content First Korean Country Foreign|Parenthetical UK Foreign|Parenthetical India Foreign|City Only Foreign|Bay Area Foreign|Greater Bengaluru Foreign|New York Metro Foreign/);
-      assert.match(capturedGeminiPrompt, /Global Korea Candidate/);
-      assert.match(capturedGeminiPrompt, /Previously worked in Singapore/);
-      assert.match(capturedGeminiPrompt, /Its employer is based in San Francisco/);
+      assert.doesNotMatch(capturedGeminiPrompt, /45세|External result|candidate@example\.com|private\.example|10-1234-5678|415 555 0123/);
+      assert.match(capturedGeminiPrompt, /Ben Gerber/);
+      assert.match(capturedGeminiPrompt, /Swati Anuj Arya/);
+      assert.match(capturedGeminiPrompt, /Zurich privacy leader/);
+      assert.match(capturedGeminiPrompt, /Singapore Candidate/);
+      assert.match(capturedGeminiPrompt, /London, United Kingdom/);
       assert.match(capturedGeminiPrompt, /Greater Seoul Metropolitan Area/);
-      assert.match(capturedGeminiPrompt, /Seoul, KR \(Hybrid\)/);
-      assert.match(capturedGeminiPrompt, /Jordan \| CPO/);
-      assert.match(capturedGeminiPrompt, /근무지: 대한민국 서울특별시/);
-      assert.doesNotMatch(capturedGeminiPrompt, /Cross Query Conflict Candidate/, "conflicting current locations across keyword hits fail closed before AI evaluation");
       assert.match(capturedGeminiPrompt, /\[비직무정보 제거\]/);
       assert.match(capturedGeminiPrompt, /\[연락처 제거\]/);
-      assert.match(capturedGeminiPrompt, /Requested work location: South Korea · Seoul\/Gyeonggi\/Incheon capital area/);
-      assert.match(capturedGeminiPrompt, /LOCATION_EVIDENCE_EXCERPT is an exact current-location field or clause showing South Korea/);
+      if (capturedGeminiPrompt.includes("Korea-related professional capability")) {
+        assert.match(capturedGeminiPrompt, /Korea-related professional capability; current residence unrestricted/);
+        assert.match(capturedGeminiPrompt, /Do not reject or downrank a candidate because they live outside Korea or have UNKNOWN location/);
+      } else {
+        assert.match(capturedGeminiPrompt, /Recruiter-supplied target context: United States/);
+        assert.match(capturedGeminiPrompt, /Location is optional/);
+      }
+      assert.doesNotMatch(capturedGeminiPrompt, /Omit a record unless LOCATION_EVIDENCE_EXCERPT is an exact current-location/);
       assert.match(capturedGeminiPrompt, /SOURCE_RECORDS_JSON/);
       assert.match(capturedGeminiPrompt, /S01/);
     }
@@ -918,8 +932,8 @@ assert.deepEqual(search.providers, { search: "tavily", structure: "gemini" });
 assert.equal(search.model, "gemini-2.5-flash-lite");
 assert.equal(search.fallbackUsed, true);
 assert.equal(search.usageCredits, 10);
-assert.equal(search.locationPolicy, "strict_korea_public_evidence");
-assert.equal(search.locationFilteredCount, 53);
+assert.equal(search.locationPolicy, "korea_professional_relevance_residency_agnostic");
+assert.equal(search.locationFilteredCount, 0);
 assert.equal(search.persistAllowed, false);
 assert.equal(search.plannedQueries.length, 5);
 assert.match(search.plannedQueries[0], /site:linkedin\.com\/in/);
@@ -934,13 +948,15 @@ assert.deepEqual(search.searchPlan, {
   perQueryMaxResults: 10,
   geminiSourceCap: 50,
   retrievalWeighting: false,
+  currentResidenceGate: false,
+  nationalityInference: false,
   evaluationPasses: 1,
 });
 assert.equal(capturedTavilyBodies.length, 5);
 for (let index = 0; index < capturedTavilyBodies.length; index += 1) {
   assert.match(capturedTavilyBodies[index].query, new RegExp(search.executedKeywords[index].replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"));
 }
-assert.equal(search.candidates.length, 4, "invented source IDs, excerpt mismatches, duplicates, foreign locations, and external URLs are excluded while valid Korea candidates remain reviewable");
+assert.equal(search.candidates.length, 5, "source-bound candidates remain reviewable regardless of current residence while invented IDs and excerpt mismatches are excluded");
 assert.equal(search.candidates[0].name, "Test Privacy Leader");
 assert.equal(search.candidates[0].url, "https://www.linkedin.com/in/test-privacy-leader");
 assert.equal(search.candidates[0].score, 84);
@@ -951,28 +967,30 @@ assert.equal(search.candidates[1].name, "Protected Candidate");
 assert.equal(search.candidates[1].summary, "Protected Candidate runs a privacy program.");
 assert.equal(search.candidates[2].name, "Contact Candidate");
 assert.match(search.candidates[2].summary, /\[연락처 제거\]/);
-assert.equal(search.candidates[3].name, "Global Korea Candidate");
-assert.equal(search.candidates[3].location, "Seoul, South Korea");
-assert.match(search.candidates[3].summary, /currently based in Seoul, South Korea/);
-assert.equal(search.sources.length, 4, "only final accepted candidate sources are exposed as accepted sources");
+assert.equal(search.candidates[3].name, "Unknown Location Candidate");
+assert.equal(search.candidates[3].location, "공개 정보 확인 필요");
+assert.equal(search.candidates[4].name, "Singapore Candidate");
+assert.equal(search.candidates[4].location, "Singapore");
+assert.match(search.candidates[4].summary, /currently based in Singapore/);
+assert.match(search.candidates[4].verify, /국적·시민권은 추론하지 않음/);
+assert.equal(search.sources.length, 5, "only final accepted candidate sources are exposed as accepted sources");
 assert.equal(search.searchAttempts.length, 5);
 assert.ok(search.searchAttempts.every((attempt) => attempt.status === 200 && attempt.credits === 2 && attempt.resultCount > 10));
-assert.equal(search.acceptedResultCount, 4);
+assert.equal(search.acceptedResultCount, 5);
 assert.equal(search.keywordMetrics.length, 5);
 assert.deepEqual(search.keywordMetrics.map((metric) => metric.keyword), search.executedKeywords);
-assert.ok(search.keywordMetrics.every((metric) => metric.rawResultCount > 10 && metric.uniqueProfileCount > 50 && metric.locationPassedProfileCount >= 4 && metric.finalAcceptedCandidateCount === 4));
+assert.ok(search.keywordMetrics.every((metric) => metric.rawResultCount > 10 && metric.uniqueProfileCount > 50 && metric.preGeminiPassedProfileCount === 50 && metric.locationPassedProfileCount === 50 && metric.finalAcceptedCandidateCount === 5));
 assert.equal(search.uniqueProfileCount > 50, true);
 assert.equal(search.duplicateHitCount > search.uniqueProfileCount, true);
 assert.equal(Object.hasOwn(search, "groundingMetadata"), false);
 assert.equal(JSON.stringify(search).includes("request_id"), false);
 assert.equal(JSON.stringify(search).includes(fakeGeminiKey), false);
 assert.equal(JSON.stringify(search).includes(fakeTavilyKey), false);
-assert.doesNotMatch(JSON.stringify(search), /45세|candidate@example\.com|private\.example|10-1234-5678|415 555 0123|Ben Gerber|United States|Swati Anuj Arya|Delhi, India|Pyongyang|North Korea|Korea University|Boston|Zurich|Seoul privacy project leader|Employer location confusion candidate|Singapore Candidate|Alex Foreign|London|Company Field Candidate|Office Field Candidate|회사 위치 후보|본사 소재지 후보|First Person Foreign|Company Role Foreign|Whose Role Foreign|Bare First Person Foreign|Adjectival Foreign|Project Location Candidate|University Location Candidate|Jane Coworker Candidate|Jane Company Candidate|First Person Role Foreign|Appositive Current Foreign|Appositive Role Foreign|Parenthetical Foreign|Living Foreign|Ampersand Foreign|Split Company Field Candidate|Headquarters Segment Candidate|Bare Current Foreign|Gerund Foreign|Comma Based Foreign|Relative Foreign|Branded Headquarters Candidate|Branded Company Field Candidate|Actorless Location Candidate|Resident Foreign|Remote Foreign|Standalone Foreign|Content First UK Foreign|Content First India Foreign|Content First Korean Country Foreign|Parenthetical UK Foreign|Parenthetical India Foreign|City Only Foreign|Bay Area Foreign|Greater Bengaluru Foreign|New York Metro Foreign/);
-assert.ok(search.candidates.some((candidate) => candidate.name === "Global Korea Candidate"), "past foreign experience must not exclude a candidate whose current location is Seoul");
-assert.match(search.text, /현재 한국 위치 evidence/);
-assert.match(search.text, /해외 또는 위치 미확인 결과 53건은 제외/);
+assert.doesNotMatch(JSON.stringify(search), /45세|candidate@example\.com|private\.example|10-1234-5678|415 555 0123/);
+assert.ok(search.candidates.some((candidate) => candidate.name === "Singapore Candidate"), "an overseas candidate must not be excluded by current residence");
+assert.match(search.text, /현재 거주지는 필터링하지 않았으며 국적·시민권은 추론하지 않았습니다/);
 assert.doesNotMatch(JSON.stringify(search.candidates), /Prompt Injection Candidate/, "unbound model signals cannot create a scored candidate");
-assert.doesNotMatch(JSON.stringify(search.candidates), /Unknown Location Candidate/, "UNKNOWN public location cannot pass the Korea location gate");
+assert.match(JSON.stringify(search.candidates), /Unknown Location Candidate/, "UNKNOWN public location remains reviewable when residence is not a gate");
 assert.match(capturedGeminiPrompt, /Privacy by Design/);
 assert.match(capturedGeminiPrompt, /never output a URL/i);
 assert.equal(tavilySearchCalls - tavilyCallsBeforeAtomicSearch, 5);
@@ -1051,15 +1069,11 @@ response = await worker.fetch(request("/api/search", { method: "POST", headers: 
 assert.equal(response.status, 200);
 assert.equal((await response.clone().json()).idempotencyRecorded, true);
 DB.lock = null;
-response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, keywords: search.executedKeywords.slice().reverse().join("\n"), additional: "idempotency fixture" }) }), idempotencyEnv);
+response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, location: "화면에서 임의로 바꾼 거주지 문구", keywords: search.executedKeywords.slice().reverse().join("\n"), additional: "idempotency fixture" }) }), idempotencyEnv);
 assert.equal(response.status, 409);
 const duplicateSearch = await response.json();
-assert.equal(duplicateSearch.status, "duplicate_search", "server normalizes keyword order when preventing a completed duplicate search");
+assert.equal(duplicateSearch.status, "duplicate_search", "server normalizes keyword order and ignores presentation-only CPO location text when preventing a completed duplicate search");
 assert.equal(tavilySearchCalls - callsBeforeIdempotency, 5, "a completed duplicate does not consume another Tavily query batch");
-response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, preset: "custom", additional: "idempotency fixture" }) }), idempotencyEnv);
-assert.equal(response.status, 409);
-assert.equal((await response.json()).status, "duplicate_search", "presentation-only preset changes cannot bypass completed-search idempotency when effective search behavior is unchanged");
-assert.equal(tavilySearchCalls - callsBeforeIdempotency, 5);
 assert.equal(JSON.stringify(Array.from(DB.signatures.keys())).includes(testOwnerEmail), false, "completed-search state stores only hashes");
 DB.signatures.clear();
 
@@ -1093,9 +1107,10 @@ response = await worker.fetch(request("/api/search", {
 }), env);
 assert.equal(response.status, 200);
 const cpoLocationOverride = await response.json();
-assert.equal(cpoLocationOverride.locationPolicy, "strict_korea_public_evidence", "the CPO preset owns the Korea location policy");
-assert.match(capturedTavilyBody.query, /currently based in South Korea/i);
-assert.doesNotMatch(capturedTavilyBody.query, /United States/i, "editable location text cannot widen the CPO preset outside Korea");
+assert.equal(cpoLocationOverride.locationPolicy, "korea_professional_relevance_residency_agnostic", "the CPO preset owns a Korea professional-context policy without a residence gate");
+assert.match(capturedTavilyBody.query, /Candidates may currently live in any country/i);
+assert.doesNotMatch(capturedTavilyBody.query, /currently based in South Korea/i);
+assert.doesNotMatch(capturedTavilyBody.query, /United States/i, "editable presentation text cannot turn the CPO preset into a residence filter");
 
 DB.lock = null;
 response = await worker.fetch(request("/api/search", {
@@ -1105,9 +1120,9 @@ response = await worker.fetch(request("/api/search", {
 }), env);
 assert.equal(response.status, 200);
 const cpoRoleOverride = await response.json();
-assert.equal(cpoRoleOverride.locationPolicy, "strict_korea_public_evidence", "the server-recognized CPO role owns the Korea policy even if preset is caller-controlled");
-assert.match(capturedTavilyBody.query, /currently based in South Korea/i);
-assert.doesNotMatch(capturedTavilyBody.query, /United States/i);
+assert.equal(cpoRoleOverride.locationPolicy, "requested_context_no_residency_gate", "a custom role uses its explicit work context without silently applying the CPO preset");
+assert.match(capturedTavilyBody.query, /United States/i);
+assert.doesNotMatch(capturedTavilyBody.query, /currently based in South Korea/i);
 
 let upstreamBeforeInvalidKeywords = tavilySearchCalls;
 response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, keywords: "" }) }), env);
@@ -1121,7 +1136,7 @@ assert.equal(response.status, 400);
 assert.equal((await response.json()).status, "blocked_attribute");
 assert.equal(tavilySearchCalls, upstreamBeforeInvalidKeywords, "invalid atomic keyword plans are blocked before upstream calls");
 
-for (const protectedVariant of ["1980년생 이상", "45세 이하만", "40대 후보", "born 1980", "DOB 확인", "기혼자만", "sexual orientation", "veteran status", "45 yo", "under 45", "g\u200bender", "나\u200b이"]) {
+for (const protectedVariant of ["1980년생 이상", "45세 이하만", "40대 후보", "born 1980", "DOB 확인", "기혼자만", "한국인만", "대한민국 국적", "Korean citizen", "nationality", "sexual orientation", "veteran status", "45 yo", "under 45", "g\u200bender", "나\u200b이"]) {
   DB.lock = null;
   response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, additional: protectedVariant }) }), env);
   assert.equal(response.status, 400);
