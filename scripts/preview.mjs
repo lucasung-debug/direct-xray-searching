@@ -54,7 +54,14 @@ class PreviewD1 {
   prepare(sql) { return new PreviewStatement(this, sql); }
 }
 
-const env = { DB: new PreviewD1(), BYOK_MASTER_KEY: "22".repeat(32), CPO_OWNER_EMAIL_HASH: previewOwnerHash, CPO_ALLOWED_HOST: "127.0.0.1" };
+const publicPreview = process.env.CPO_PREVIEW_PUBLIC === "1";
+const env = {
+  DB: new PreviewD1(),
+  BYOK_MASTER_KEY: "22".repeat(32),
+  CPO_OWNER_EMAIL_HASH: previewOwnerHash,
+  CPO_ALLOWED_HOST: "127.0.0.1",
+  CPO_PUBLIC_SEARCH_ENABLED: publicPreview ? "1" : "0",
+};
 const port = Number(process.env.CPO_PREVIEW_PORT || 4179);
 
 const server = http.createServer(async (incoming, outgoing) => {
@@ -62,7 +69,7 @@ const server = http.createServer(async (incoming, outgoing) => {
   for await (const chunk of incoming) chunks.push(chunk);
   const body = chunks.length ? Buffer.concat(chunks) : undefined;
   const headers = new Headers(incoming.headers);
-  headers.set("oai-authenticated-user-email", previewOwnerEmail);
+  if (!publicPreview) headers.set("oai-authenticated-user-email", previewOwnerEmail);
   const request = new Request("http://127.0.0.1:" + port + incoming.url, {
     method: incoming.method,
     headers,
