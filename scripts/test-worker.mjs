@@ -120,9 +120,13 @@ const searchPayload = { preset: "cpo", job: "CPO", location: "한국 관련 인�
 
 let response = await worker.fetch(request("/"), env);
 assert.equal(response.status, 200);
+assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow, noarchive");
 const home = await response.text();
 assert.match(home, /<title>Direct X-ray Searching<\/title>/);
+assert.match(home, /<meta name="robots" content="noindex,nofollow,noarchive">/);
 assert.match(home, /<strong>Direct X-ray Searching<\/strong>/);
+assert.match(home, /class="btn hidden" id="workflow-link"/);
+assert.match(home, /\.brand \.brand-mark\{[^}]*margin-top:0[^}]*color:#fff[^}]*display:grid/, "the compact mobile brand mark keeps centered high-contrast initials");
 assert.match(home, /키워드별 후보 찾기/);
 assert.match(home, /검색 키워드 · 한 줄에 하나/);
 assert.match(home, /필수 조건 · 최종 평가용/);
@@ -133,8 +137,8 @@ assert.doesNotMatch(home, /var snapshotCandidates = \[\s*\{/);
 assert.match(home, /Tavily Search · 후보 검색/);
 assert.match(home, /Gemini · 합집합 최종 JD 평가/);
 assert.match(home, /REFERENCE PARITY/);
-assert.match(home, /<details class="panel parity">/, "internal parity checks are collapsed by default");
-assert.doesNotMatch(home, /<details class="panel parity" open>/);
+assert.match(home, /<details class="panel parity hidden" id="parity-panel">/, "internal parity checks are hidden from public visitors by default");
+assert.doesNotMatch(home, /<details class="panel parity(?: hidden)?"[^>]* open>/);
 assert.match(home, /id="search-progress" data-state="idle"/);
 assert.match(home, /프로필 탐색/);
 assert.match(home, /직무 근거 확인/);
@@ -169,8 +173,11 @@ assert.match(home, /masked-output/, "share masking hides the compact search resu
 assert.match(home, /classList\.toggle\("masked-output",masked\)/);
 assert.match(home, /masked-pool/, "share masking hides a pre-filled manual candidate form");
 assert.match(home, /암호문과 상태 식별용 끝 4자리만 저장/, "BYOK storage copy discloses the plaintext last4 status field");
-assert.match(home, /승인된 검토자가 검색하면 이 사이트에 저장된 동일한 키와 공급자 쿼터를 사용/);
-assert.match(home, /검토자는 키 원문·끝 4자리·설정 화면을 조회하거나 변경할 수 없습니다/);
+assert.match(home, /링크 방문자가 검색하면 이 사이트에 저장된 동일한 키와 공급자 쿼터를 사용/);
+assert.match(home, /방문자는 키 원문·끝 4자리·설정 화면을 조회하거나 변경할 수 없습니다/);
+assert.match(home, /공개 방문자 20 credits, 공개 사이트 전체 200 credits/);
+assert.match(home, /capabilities\.role==="public"\?"공개 링크 · 일일 검색 한도 적용"/);
+assert.match(home, /byId\("parity-panel"\)\.classList\.toggle\("hidden",capabilities\.role!=="owner"\)/);
 assert.doesNotMatch(home, /name\+"\|"\+item\.company/, "dedupe must use URL");
 
 response = await worker.fetch(request("/api/capabilities", { headers: { "x-cpo-session": "1", "oai-authenticated-user-email": testOwnerEmail } }), env);
@@ -988,6 +995,7 @@ assert.deepEqual(search.searchPlan, {
   queryCount: 5,
   maxCredits: 10,
   actorDailyCreditLimit: 10000,
+  publicSiteDailyCreditLimit: null,
   perQueryMaxResults: 20,
   geminiSourceCap: 50,
   retrievalWeighting: false,
@@ -1269,4 +1277,87 @@ assert.equal(response.status, 409);
 setup = await response.json();
 assert.deepEqual(setup.missingProviders, ["tavily", "gemini"]);
 
-console.log("Worker dual-provider BYOK, atomic Tavily union, source-bound final Gemini evaluation, reviewer auth, empty pool, and safety contracts passed");
+const publicDB = new MockD1();
+const publicEnv = {
+  ...env,
+  DB: publicDB,
+  CPO_PUBLIC_SEARCH_ENABLED: "1",
+  CPO_PUBLIC_ACTOR_SALT: "public-test-salt",
+  CPO_PUBLIC_TAVILY_DAILY_CREDIT_LIMIT: "10",
+  CPO_PUBLIC_TAVILY_GLOBAL_DAILY_CREDIT_LIMIT: "10",
+};
+response = await worker.fetch(request("/api/capabilities", { headers: { "x-cpo-session": "1" } }), publicEnv);
+assert.deepEqual(await response.json(), { status: "ok", role: "public", canSearch: true, canManageKeys: false });
+response = await worker.fetch(request("/api/settings/tavily", { headers: { "x-cpo-settings": "1" } }), publicEnv);
+assert.equal(response.status, 403, "anonymous visitors cannot inspect BYOK status or metadata");
+response = await worker.fetch(request("/workflow"), publicEnv);
+assert.equal(response.status, 404, "internal workflow material is not published with the search page");
+response = await worker.fetch(request("/api/manifest"), publicEnv);
+assert.equal(response.status, 404, "internal report APIs are not published with the search page");
+response = await worker.fetch(request("/workflow", { headers: { "oai-authenticated-user-email": testOwnerEmail } }), publicEnv);
+assert.equal(response.status, 200, "the owner retains access to internal workflow material");
+response = await worker.fetch(request("/robots.txt"), publicEnv);
+assert.equal(response.status, 200);
+assert.equal(await response.text(), "User-agent: *\nDisallow: /\n");
+
+for (const [provider, apiKey] of [["gemini", fakeGeminiKey], ["tavily", fakeTavilyKey]]) {
+  response = await worker.fetch(request("/api/settings/" + provider, {
+    method: "PUT",
+    headers: { ...settingsHeaders, "content-type": "application/json" },
+    body: JSON.stringify({ apiKey }),
+  }), publicEnv);
+  assert.equal(response.status, 200, "the owner can configure the shared provider key while public search is enabled");
+}
+
+const publicSearchHeaders = {
+  origin,
+  "x-cpo-search": "1",
+  "content-type": "application/json",
+  "cf-connecting-ip": "203.0.113.10",
+  "user-agent": "public-search-test",
+  "accept-language": "ko-KR",
+};
+const publicCallsBeforeSearch = tavilySearchCalls;
+response = await worker.fetch(request("/api/search", {
+  method: "POST",
+  headers: publicSearchHeaders,
+  body: JSON.stringify({ ...searchPayload, additional: "public visitor fixture" }),
+}), publicEnv);
+assert.equal(response.status, 200, await response.clone().text());
+const publicSearch = await response.json();
+assert.equal(publicSearch.status, "ok");
+assert.equal(publicSearch.searchPlan.actorDailyCreditLimit, 10);
+assert.equal(publicSearch.searchPlan.publicSiteDailyCreditLimit, 10);
+assert.equal(tavilySearchCalls - publicCallsBeforeSearch, 5);
+assert.equal(publicDB.actorUsage.size, 2, "public search reserves both a visitor bucket and the site-wide bucket");
+assert.equal(JSON.stringify(Array.from(publicDB.actorUsage.keys())).includes("203.0.113.10"), false, "raw visitor addresses are never stored in usage keys");
+assert.equal(JSON.stringify(Array.from(publicDB.actorUsage.keys())).includes(testOwnerEmail), false);
+
+publicDB.lock = null;
+const callsBeforeVisitorLimit = tavilySearchCalls;
+response = await worker.fetch(request("/api/search", {
+  method: "POST",
+  headers: publicSearchHeaders,
+  body: JSON.stringify({ ...searchPayload, additional: "same visitor daily boundary" }),
+}), publicEnv);
+assert.equal(response.status, 429);
+const publicVisitorLimit = await response.json();
+assert.equal(publicVisitorLimit.status, "tavily_daily_limit");
+assert.equal(publicVisitorLimit.dailyCreditLimit, 10);
+assert.equal(tavilySearchCalls, callsBeforeVisitorLimit, "visitor limits block before provider calls");
+
+publicDB.lock = null;
+const callsBeforePublicSiteLimit = tavilySearchCalls;
+response = await worker.fetch(request("/api/search", {
+  method: "POST",
+  headers: { ...publicSearchHeaders, "cf-connecting-ip": "203.0.113.11" },
+  body: JSON.stringify({ ...searchPayload, additional: "site-wide public boundary" }),
+}), publicEnv);
+assert.equal(response.status, 429);
+const publicSiteLimit = await response.json();
+assert.equal(publicSiteLimit.status, "public_site_daily_limit");
+assert.equal(publicSiteLimit.dailyCreditLimit, 10);
+assert.equal(tavilySearchCalls, callsBeforePublicSiteLimit, "site-wide public limits block before provider calls");
+assert.ok(Array.from(publicDB.actorUsage.values()).some((row) => row.reserved_credits === 0), "a site-wide rejection rolls back the new visitor reservation");
+
+console.log("Worker dual-provider BYOK, atomic Tavily union, source-bound final Gemini evaluation, owner/reviewer/public auth, public rate limits, internal artifact isolation, empty pool, and safety contracts passed");

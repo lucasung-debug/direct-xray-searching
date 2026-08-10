@@ -500,6 +500,7 @@ function textResponse(body, init = {}) {
     headers: {
       "content-type": init.contentType || "text/plain; charset=utf-8",
       "cache-control": "no-store",
+      "x-robots-tag": "noindex, nofollow, noarchive",
       ...(init.headers || {}),
     },
   });
@@ -546,6 +547,7 @@ const SOURCING_HTML = String.raw`<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex,nofollow,noarchive">
   <title>${PRODUCT_NAME}</title>
   <style>
     :root {
@@ -562,7 +564,7 @@ const SOURCING_HTML = String.raw`<!doctype html>
     a{color:inherit}
     .topbar{position:sticky;top:0;z-index:30;height:72px;padding:0 28px;background:rgba(255,255,255,.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
     .brand{display:flex;align-items:center;gap:12px;text-decoration:none}
-    .brand-mark{width:38px;height:38px;border-radius:12px;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:900}
+    .brand .brand-mark{width:38px;height:38px;margin-top:0;border-radius:12px;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:900}
     .brand strong{display:block;font-size:16px}.brand span{display:block;margin-top:3px;color:var(--muted);font-size:11px}
     .top-actions{display:flex;align-items:center;gap:8px}
     .btn{border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);padding:10px 13px;font-weight:750;cursor:pointer;text-decoration:none;white-space:nowrap}
@@ -620,7 +622,7 @@ const SOURCING_HTML = String.raw`<!doctype html>
     .toast{position:fixed;right:22px;bottom:22px;z-index:60;max-width:380px;padding:12px 15px;border-radius:11px;background:#172033;color:#fff;box-shadow:var(--shadow);font-size:12px;opacity:0;transform:translateY(10px);pointer-events:none;transition:.2s}.toast.show{opacity:1;transform:none}
     .hidden{display:none!important}
     @media(max-width:980px){.layout{grid-template-columns:1fr}.sidebar{position:static}.flow{grid-template-columns:repeat(3,1fr)}.parity-grid{grid-template-columns:1fr}}
-    @media(max-width:640px){.topbar{height:auto;min-height:68px;padding:11px 14px}.brand>span:not(.brand-mark){display:none}.brand-mark{display:grid}.top-actions{gap:4px}.top-actions .btn{padding:8px 9px;font-size:11px}.top-actions .label{display:none}.layout{width:min(100% - 18px,1540px);margin-top:10px}.hero,.sidebar,.pool,.search-output{padding:18px}.hero h2{font-size:28px}.flow{grid-template-columns:repeat(2,1fr)}.search-flow{grid-template-columns:1fr}.search-step b{white-space:normal}.search-summary{grid-template-columns:repeat(2,1fr)}.manual-grid{grid-template-columns:1fr}.manual-grid .full{grid-column:auto}.candidate{grid-template-columns:58px minmax(0,1fr);padding:13px}.score{width:54px;height:54px;border-radius:15px}.card-foot{grid-column:1/-1}.parity-item{grid-template-columns:52px 1fr}}
+    @media(max-width:640px){.topbar{height:auto;min-height:68px;padding:11px 14px}.brand>span:not(.brand-mark){display:none}.brand .brand-mark{display:grid}.top-actions{gap:4px}.top-actions .btn{padding:8px 9px;font-size:11px}.top-actions .label{display:none}.layout{width:min(100% - 18px,1540px);margin-top:10px}.hero,.sidebar,.pool,.search-output{padding:18px}.hero h2{font-size:28px}.flow{grid-template-columns:repeat(2,1fr)}.search-flow{grid-template-columns:1fr}.search-step b{white-space:normal}.search-summary{grid-template-columns:repeat(2,1fr)}.manual-grid{grid-template-columns:1fr}.manual-grid .full{grid-column:auto}.candidate{grid-template-columns:58px minmax(0,1fr);padding:13px}.score{width:54px;height:54px;border-radius:15px}.card-foot{grid-column:1/-1}.parity-item{grid-template-columns:52px 1fr}}
     @media(prefers-reduced-motion:reduce){.search-progress-bar{transition:none}.search-progress[data-state="loading"] .search-status-icon:after,.search-progress[data-state="loading"] .search-progress-bar:after{animation:none}}
   </style>
 </head>
@@ -628,7 +630,7 @@ const SOURCING_HTML = String.raw`<!doctype html>
   <header class="topbar">
     <a class="brand" href="/"><span class="brand-mark">DX</span><span><strong>${PRODUCT_NAME}</strong><span>Reusable role presets · button-triggered search</span></span></a>
     <div class="top-actions">
-      <a class="btn" href="/workflow"><span class="label">기준·워크플로우</span> ↗</a>
+      <a class="btn hidden" id="workflow-link" href="/workflow"><span class="label">기준·워크플로우</span> ↗</a>
       <button class="btn" id="mask-toggle" type="button" title="후보 출력만 가립니다. 좌측 검색 조건은 공동 검토를 위해 유지됩니다.">후보 출력 가림</button>
       <button class="btn hidden" id="settings-open" type="button">설정</button>
     </div>
@@ -642,7 +644,8 @@ const SOURCING_HTML = String.raw`<!doctype html>
       <div class="runtime">
         <strong>실행 방식</strong><br>
         예약 실행 없음 · 버튼을 누를 때만 Tavily 공개 웹 검색 · Gemini는 합쳐진 결과를 마지막에 한 번 평가<br>
-        CPO 프리셋은 해외 거주자도 검색 · 현재 거주지로 제외하지 않음 · 국적·시민권 자동 추론 안 함
+        CPO 프리셋은 해외 거주자도 검색 · 현재 거주지로 제외하지 않음 · 국적·시민권 자동 추론 안 함<br>
+        공개 링크 · 방문자별·사이트 전체 일일 검색 한도 적용
         <div class="status-row"><span class="dot" id="api-dot"></span><span id="api-status">BYOK 상태 확인 중</span></div>
       </div>
       <div class="field"><label for="preset">반복 채용 프리셋</label><select id="preset"><option value="cpo">CPO · 테스트 베드</option><option value="custom">자유 입력</option></select><p class="muted" id="preset-summary" style="margin:6px 0 0;font-size:10px;line-height:1.5">등록된 역할 프리셋을 선택하거나 자유 입력으로 새 조건을 시험할 수 있습니다.</p></div>
@@ -678,7 +681,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         <div class="flow"><span><b>1</b>키워드 입력</span><span><b>2</b>개별 검색</span><span><b>3</b>합집합·중복 제거</span><span><b>4</b>AI 통합 평가</span><span><b>5</b>사람 검증</span><span><b>6</b>전체 재정렬</span></div>
       </section>
 
-      <details class="panel parity">
+      <details class="panel parity hidden" id="parity-panel">
         <summary><span>REFERENCE PARITY · 지속 검증판</span><span class="parity-count" id="parity-count">상태 계산 중</span></summary>
         <div class="parity-grid" id="parity-grid"></div>
       </details>
@@ -729,12 +732,12 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
   <dialog id="settings-dialog">
     <div class="dialog-head"><div><div class="eyebrow">Settings · BYOK</div><h2 style="margin:5px 0 0">검색·분석 API 키</h2></div><button class="btn" id="settings-close" type="button">닫기</button></div>
     <div class="dialog-body">
-      <div class="security-box"><strong>서버 암호화 저장 · 승인된 검토자와 공용</strong><br>입력한 키는 TLS로 서버에 전달되고 AES-256-GCM으로 암호화됩니다. D1에는 암호문과 상태 식별용 끝 4자리만 저장되며, 복호화 마스터 키는 Sites 비밀 환경변수에 분리되어 있습니다. 승인된 검토자가 검색하면 이 사이트에 저장된 동일한 키와 공급자 쿼터를 사용하지만, 검토자는 키 원문·끝 4자리·설정 화면을 조회하거나 변경할 수 없습니다.</div>
+      <div class="security-box"><strong>서버 암호화 저장 · 공개 검색과 공용</strong><br>입력한 키는 TLS로 서버에 전달되고 AES-256-GCM으로 암호화됩니다. D1에는 암호문과 상태 식별용 끝 4자리만 저장되며, 복호화 마스터 키는 Sites 비밀 환경변수에 분리되어 있습니다. 링크 방문자가 검색하면 이 사이트에 저장된 동일한 키와 공급자 쿼터를 사용하지만, 방문자는 키 원문·끝 4자리·설정 화면을 조회하거나 변경할 수 없습니다.</div>
       <section class="provider-box">
         <h3>Tavily Search · 후보 검색</h3>
         <div class="key-meta" id="tavily-key-meta">저장 상태 확인 중</div>
         <div class="field"><label for="tavily-key">새 Tavily API 키</label><input id="tavily-key" type="password" autocomplete="off" spellcheck="false" placeholder="tvly-…" maxlength="512"></div>
-        <p class="muted" style="font-size:11px;line-height:1.55">버튼을 누를 때만 <code>linkedin.com/in</code> 공개 프로필로 제한해 키워드 한 줄당 독립 검색합니다. 연결 테스트는 무료 usage 조회이며, 실제 advanced 검색은 키워드당 2 credits(한 번에 최대 5개·최대 10 credits)입니다. 기본 일일 안전 한도는 소유자 200 credits, 공유 검토자 50 credits이며 같은 조건의 완료 검색은 15분간 서버에서도 중복 실행을 막습니다. 필수·우대 조건은 검색어에 섞지 않고 마지막 Gemini 평가에만 사용합니다. 앱 DB에는 검색 결과를 저장하지 않지만 Tavily 측 query 처리·로그 가능성은 있으므로, 비공개 후보정보를 입력하지 마세요.</p>
+        <p class="muted" style="font-size:11px;line-height:1.55">버튼을 누를 때만 <code>linkedin.com/in</code> 공개 프로필로 제한해 키워드 한 줄당 독립 검색합니다. 연결 테스트는 무료 usage 조회이며, 실제 advanced 검색은 키워드당 2 credits(한 번에 최대 5개·최대 10 credits)입니다. 기본 일일 안전 한도는 공개 방문자 20 credits, 공개 사이트 전체 200 credits, 소유자 200 credits이며 같은 조건의 완료 검색은 15분간 서버에서도 중복 실행을 막습니다. 필수·우대 조건은 검색어에 섞지 않고 마지막 Gemini 평가에만 사용합니다. 앱 DB에는 검색 결과를 저장하지 않지만 Tavily 측 query 처리·로그 가능성은 있으므로, 비공개 후보정보를 입력하지 마세요.</p>
         <div id="tavily-settings-message" class="search-message hidden"></div>
         <div class="provider-actions"><button class="btn danger" id="tavily-key-delete" type="button">키 삭제</button><button class="btn" id="tavily-key-test" type="button">연결 테스트</button><button class="btn primary" id="tavily-key-save" type="button">암호화 저장</button></div>
       </section>
@@ -1005,12 +1008,14 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
           if(!response.ok)throw new Error("capabilities unavailable");
           capabilities={role:String(data.role||"unknown"),canSearch:Boolean(data.canSearch),canManageKeys:Boolean(data.canManageKeys)};
           byId("settings-open").classList.toggle("hidden",!capabilities.canManageKeys);
+          byId("workflow-link").classList.toggle("hidden",capabilities.role!=="owner");
+          byId("parity-panel").classList.toggle("hidden",capabilities.role!=="owner");
           if(capabilities.canManageKeys){await loadKeyStatus();if(new URLSearchParams(window.location.search).get("settings")==="1"&&!byId("settings-dialog").open)byId("settings-dialog").showModal()}
-          else if(capabilities.canSearch)setApiStatus("ok","공유 검토자 · 저장된 검색 설정 사용");
+          else if(capabilities.canSearch)setApiStatus("ok",capabilities.role==="public"?"공개 링크 · 일일 검색 한도 적용":"공유 검토자 · 저장된 검색 설정 사용");
           else setApiStatus("warn","검색 권한 없음");
         }catch(error){
           capabilities={role:"forbidden",canSearch:false,canManageKeys:false};
-          byId("settings-open").classList.add("hidden");setApiStatus("warn","접근 권한 확인 실패");
+          byId("settings-open").classList.add("hidden");byId("workflow-link").classList.add("hidden");byId("parity-panel").classList.add("hidden");setApiStatus("warn","접근 권한 확인 실패");
         }
         setBusy(false);
       }
@@ -1116,14 +1121,22 @@ const ANALYSIS_SYSTEM_INSTRUCTION = [
 const GEMINI_MODEL_PRIORITY = Object.freeze(["gemini-3.5-flash-lite", "gemini-2.5-flash-lite"]);
 const GEMINI_API_VERSION_PRIORITY = Object.freeze(["v1", "v1beta"]);
 
-function actionEmail(request, env, headerName, requireOrigin) {
+function actionRequestAllowed(request, env, headerName, requireOrigin) {
   const url = new URL(request.url);
   const allowedHost = String(env.CPO_ALLOWED_HOST || DEFAULT_SITE_HOST).trim().toLowerCase();
-  if (!allowedHost || url.hostname.toLowerCase() !== allowedHost) return "";
+  if (!allowedHost || url.hostname.toLowerCase() !== allowedHost) return false;
   const origin = request.headers.get("origin");
-  if (requireOrigin ? origin !== url.origin : Boolean(origin) && origin !== url.origin) return "";
-  if (request.headers.get(headerName) !== "1") return "";
+  if (requireOrigin ? origin !== url.origin : Boolean(origin) && origin !== url.origin) return false;
+  return request.headers.get(headerName) === "1";
+}
+
+function actionEmail(request, env, headerName, requireOrigin) {
+  if (!actionRequestAllowed(request, env, headerName, requireOrigin)) return "";
   return normalizedEmail(request);
+}
+
+function publicSearchEnabled(env) {
+  return String(env.CPO_PUBLIC_SEARCH_ENABLED || "").trim() === "1";
 }
 
 async function emailMatchesHash(email, expectedHash) {
@@ -1137,28 +1150,48 @@ async function ownerActionAllowed(request, env, headerName, requireOrigin) {
   return emailMatchesHash(email, env.CPO_OWNER_EMAIL_HASH || EDITOR_EMAIL_HASH);
 }
 
+async function internalArtifactAllowed(request, env) {
+  if (!publicSearchEnabled(env)) return true;
+  return emailMatchesHash(normalizedEmail(request), env.CPO_OWNER_EMAIL_HASH || EDITOR_EMAIL_HASH);
+}
+
+async function publicSearchActorHash(request, env) {
+  const email = normalizedEmail(request);
+  const edgeIp = String(request.headers.get("cf-connecting-ip") || request.headers.get("x-forwarded-for") || "").split(",")[0].trim().slice(0, 80);
+  const userAgent = String(request.headers.get("user-agent") || "unknown").slice(0, 240);
+  const language = String(request.headers.get("accept-language") || "unknown").slice(0, 120);
+  const seed = email ? "email:" + email : "edge:" + (edgeIp || "unknown") + "|ua:" + userAgent + "|lang:" + language;
+  const pepper = String(env.CPO_PUBLIC_ACTOR_SALT || env.BYOK_MASTER_KEY || "public-search-v1");
+  return sha256Hex("direct-xray-public-v1|" + pepper + "|" + seed);
+}
+
 async function searchActionContext(request, env) {
-  const email = actionEmail(request, env, "x-cpo-search", true);
-  if (!email) return { allowed: false, role: "forbidden", actorHash: "" };
+  if (!actionRequestAllowed(request, env, "x-cpo-search", true)) return { allowed: false, role: "forbidden", actorHash: "" };
+  const email = normalizedEmail(request);
   let actorHash = "";
-  try { actorHash = await sha256Hex(email); } catch (_) { return { allowed: false, role: "forbidden", actorHash: "" }; }
+  try { actorHash = email ? await sha256Hex(email) : ""; } catch (_) { return { allowed: false, role: "forbidden", actorHash: "" }; }
   const ownerHash = String(env.CPO_OWNER_EMAIL_HASH || EDITOR_EMAIL_HASH || "").trim().toLowerCase();
   const reviewerHash = String(env.CPO_REVIEWER_EMAIL_HASH || "").trim().toLowerCase();
   if (actorHash === ownerHash && /^[0-9a-f]{64}$/.test(ownerHash)) return { allowed: true, role: "owner", actorHash };
   if (actorHash === reviewerHash && /^[0-9a-f]{64}$/.test(reviewerHash)) return { allowed: true, role: "reviewer", actorHash };
+  if (publicSearchEnabled(env)) {
+    try { return { allowed: true, role: "public", actorHash: await publicSearchActorHash(request, env) }; }
+    catch (_) { return { allowed: false, role: "forbidden", actorHash: "" }; }
+  }
   return { allowed: false, role: "forbidden", actorHash: "" };
 }
 
 async function handleCapabilities(request, env) {
   if (request.method !== "GET") return jsonResponse({ status: "method_not_allowed" }, { status: 405, headers: { allow: "GET" } });
-  const email = actionEmail(request, env, "x-cpo-session", false);
-  if (!email) return jsonResponse({ status: "forbidden" }, { status: 403 });
+  if (!actionRequestAllowed(request, env, "x-cpo-session", false)) return jsonResponse({ status: "forbidden" }, { status: 403 });
+  const email = normalizedEmail(request);
   if (await emailMatchesHash(email, env.CPO_OWNER_EMAIL_HASH || EDITOR_EMAIL_HASH)) {
     return jsonResponse({ status: "ok", role: "owner", canSearch: true, canManageKeys: true });
   }
   if (await emailMatchesHash(email, env.CPO_REVIEWER_EMAIL_HASH)) {
     return jsonResponse({ status: "ok", role: "reviewer", canSearch: true, canManageKeys: false });
   }
+  if (publicSearchEnabled(env)) return jsonResponse({ status: "ok", role: "public", canSearch: true, canManageKeys: false });
   return jsonResponse({ status: "forbidden" }, { status: 403 });
 }
 
@@ -1285,10 +1318,20 @@ function usageDayFor(timeZone) {
 }
 
 function actorTavilyDailyLimit(env, role) {
-  const variableName = role === "reviewer" ? "CPO_REVIEWER_TAVILY_DAILY_CREDIT_LIMIT" : "CPO_OWNER_TAVILY_DAILY_CREDIT_LIMIT";
-  const fallback = role === "reviewer" ? 50 : 200;
+  const variableName = role === "public_global"
+    ? "CPO_PUBLIC_TAVILY_GLOBAL_DAILY_CREDIT_LIMIT"
+    : role === "public"
+      ? "CPO_PUBLIC_TAVILY_DAILY_CREDIT_LIMIT"
+      : role === "reviewer"
+        ? "CPO_REVIEWER_TAVILY_DAILY_CREDIT_LIMIT"
+        : "CPO_OWNER_TAVILY_DAILY_CREDIT_LIMIT";
+  const fallback = role === "public_global" ? 200 : role === "public" ? 20 : role === "reviewer" ? 50 : 200;
   const configured = Number(env[variableName]);
   return Number.isFinite(configured) && configured >= 2 ? Math.min(10000, Math.floor(configured)) : fallback;
+}
+
+async function publicGlobalTavilyActor() {
+  return { role: "public_global", actorHash: await sha256Hex("direct-xray-public-global-v1") };
 }
 
 async function reserveActorTavilyCredits(env, actor, credits) {
@@ -2406,7 +2449,25 @@ async function handleSourcingSearch(request, env) {
     if (!actorBudget.allowed) {
       await releaseGeminiSearchLock(env, lockToken, 0);
       lockToken = null;
-      return jsonResponse({ status: "tavily_daily_limit", message: (actor.role === "reviewer" ? "공유 검토자" : "소유자") + "의 일일 Tavily 안전 한도 " + actorBudget.limit + " credits에 도달했습니다. 한국시간 기준 다음 날 다시 실행하세요.", dailyCreditLimit: actorBudget.limit, fallbackUrl }, { status: 429 });
+      const actorLabel = actor.role === "public" ? "이 방문자" : actor.role === "reviewer" ? "공유 검토자" : "소유자";
+      return jsonResponse({ status: "tavily_daily_limit", message: actorLabel + "의 일일 Tavily 안전 한도 " + actorBudget.limit + " credits에 도달했습니다. 한국시간 기준 다음 날 다시 실행하세요.", dailyCreditLimit: actorBudget.limit, fallbackUrl }, { status: 429 });
+    }
+    let publicGlobalActorRecord = null;
+    let publicGlobalBudget = null;
+    if (actor.role === "public") {
+      try {
+        publicGlobalActorRecord = await publicGlobalTavilyActor();
+        publicGlobalBudget = await reserveActorTavilyCredits(env, publicGlobalActorRecord, maximumTavilyCredits);
+      } catch (error) {
+        try { await rollbackActorTavilyCredits(env, actor, maximumTavilyCredits); } catch (_) { console.warn("actor_tavily_budget_rollback_failed"); }
+        throw error;
+      }
+      if (!publicGlobalBudget.allowed) {
+        try { await rollbackActorTavilyCredits(env, actor, maximumTavilyCredits); } catch (_) { console.warn("actor_tavily_budget_rollback_failed"); }
+        await releaseGeminiSearchLock(env, lockToken, 0);
+        lockToken = null;
+        return jsonResponse({ status: "public_site_daily_limit", message: "공개 링크의 오늘 검색 예산을 모두 사용했습니다. 한국시간 기준 다음 날 다시 실행하세요.", dailyCreditLimit: publicGlobalBudget.limit, fallbackUrl }, { status: 429 });
+      }
     }
     const maximumUpstreamAttempts = GEMINI_MODEL_PRIORITY.length * GEMINI_API_VERSION_PRIORITY.length;
     let geminiBudgetAllowed;
@@ -2414,10 +2475,16 @@ async function handleSourcingSearch(request, env) {
       geminiBudgetAllowed = await reserveDailyGeminiSearch(env, 450, maximumUpstreamAttempts);
     } catch (error) {
       try { await rollbackActorTavilyCredits(env, actor, maximumTavilyCredits); } catch (_) { console.warn("actor_tavily_budget_rollback_failed"); }
+      if (publicGlobalActorRecord) {
+        try { await rollbackActorTavilyCredits(env, publicGlobalActorRecord, maximumTavilyCredits); } catch (_) { console.warn("public_tavily_budget_rollback_failed"); }
+      }
       throw error;
     }
     if (!geminiBudgetAllowed) {
       try { await rollbackActorTavilyCredits(env, actor, maximumTavilyCredits); } catch (_) { console.warn("actor_tavily_budget_rollback_failed"); }
+      if (publicGlobalActorRecord) {
+        try { await rollbackActorTavilyCredits(env, publicGlobalActorRecord, maximumTavilyCredits); } catch (_) { console.warn("public_tavily_budget_rollback_failed"); }
+      }
       await releaseGeminiSearchLock(env, lockToken, 0);
       lockToken = null;
       return jsonResponse({ status: "daily_limit", message: "사이트 내부 일일 Gemini 호출 안전 예산을 모두 사용했습니다.", fallbackUrl }, { status: 429 });
@@ -2432,6 +2499,7 @@ async function handleSourcingSearch(request, env) {
       queryCount: executedKeywords.length,
       maxCredits: executedKeywords.length * 2,
       actorDailyCreditLimit: actorBudget.limit,
+      publicSiteDailyCreditLimit: publicGlobalBudget ? publicGlobalBudget.limit : null,
       perQueryMaxResults: 20,
       geminiSourceCap: 50,
       retrievalWeighting: false,
@@ -2628,6 +2696,14 @@ async function handleSourcingSearch(request, env) {
 export default {
   async fetch(request, env = {}) {
     const url = new URL(request.url);
+    const internalArtifactPaths = new Set([
+      "/workflow", "/plan", "/report",
+      "/api/manifest", "/api/snapshot", "/api/package", "/api/presentation",
+      "/api/inline-chart-widget", "/api/source-file", "/api/source",
+    ]);
+    if (internalArtifactPaths.has(url.pathname) && !await internalArtifactAllowed(request, env)) {
+      return textResponse("Not found", { status: 404 });
+    }
     if (url.pathname === "/api/settings/gemini") return handleGeminiSettings(request, env);
     if (url.pathname === "/api/settings/gemini/test") return handleGeminiKeyTest(request, env);
     if (url.pathname === "/api/settings/tavily") return handleTavilySettings(request, env);
@@ -2655,6 +2731,9 @@ export default {
     }
     if (url.pathname === "/" || url.pathname === "/index.html") {
       return textResponse(SOURCING_HTML, { contentType: "text/html; charset=utf-8" });
+    }
+    if (url.pathname === "/robots.txt") {
+      return textResponse("User-agent: *\nDisallow: /\n");
     }
     return textResponse("Not found", { status: 404 });
   },
