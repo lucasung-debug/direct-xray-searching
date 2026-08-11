@@ -452,6 +452,7 @@ assert.notEqual(DB.secrets.get("tavily_api_key").cipher_b64, firstTavilyCipher, 
 
 let forceTavilyStatus = 0;
 let forceGeminiStatus = 0;
+let forceGemini35StructuredInvalidArgument = false;
 let networkFailureProvider = "";
 let tavilyResponseMode = "normal";
 let tavilySearchCalls = 0;
@@ -947,6 +948,9 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (target.includes("generativelanguage.googleapis.com")) {
     geminiCalls += 1;
+    const modelMatch = target.match(/\/(v1(?:beta)?)\/models\/([A-Za-z0-9._-]+):generateContent$/);
+    assert.ok(modelMatch);
+    const model = modelMatch[2];
     assert.equal(init.method, "POST");
     assert.equal(init.headers["x-goog-api-key"], fakeGeminiKey);
     assert.equal(init.headers.authorization, undefined);
@@ -963,7 +967,11 @@ globalThis.fetch = async (url, init = {}) => {
       assert.equal(body.generationConfig.responseMimeType, "application/json");
       assert.equal(body.generationConfig.responseSchema.type, "OBJECT");
       assert.equal(body.generationConfig.responseSchema.properties.candidates.maxItems, 20);
-      assert.equal(body.generationConfig.temperature, 0.1);
+      if (model.startsWith("gemini-3.")) {
+        assert.equal(Object.hasOwn(body.generationConfig, "temperature"), false, "Gemini 3.x rejects deprecated sampling parameters");
+      } else {
+        assert.equal(body.generationConfig.temperature, 0.1);
+      }
       assert.match(capturedGeminiPrompt, /candidates array of at most 20 evidence-bound records/);
       assert.match(capturedGeminiPrompt, /do not stop after only the strongest few/);
     }
@@ -990,10 +998,10 @@ globalThis.fetch = async (url, init = {}) => {
       assert.match(capturedGeminiPrompt, /S01/);
     }
     if (networkFailureProvider === "gemini") throw new TypeError("network");
-    const modelMatch = target.match(/\/(v1(?:beta)?)\/models\/([A-Za-z0-9._-]+):generateContent$/);
-    assert.ok(modelMatch);
-    const model = modelMatch[2];
     if (forceGeminiStatus) return new Response(JSON.stringify({ error: { code: forceGeminiStatus, status: forceGeminiStatus === 401 ? "UNAUTHENTICATED" : "PERMISSION_DENIED", details: [{ reason: forceGeminiStatus === 401 ? "API_KEY_INVALID" : "SERVICE_DISABLED" }] } }), { status: forceGeminiStatus, headers: { "content-type": "application/json" } });
+    if (!isKeyTest && forceGemini35StructuredInvalidArgument && model === "gemini-3.5-flash-lite") {
+      return new Response(JSON.stringify({ error: { code: 400, status: "INVALID_ARGUMENT", details: [{ reason: "INVALID_ARGUMENT" }] } }), { status: 400, headers: { "content-type": "application/json" } });
+    }
     if (model === "gemini-3.5-flash-lite") return new Response(JSON.stringify({ error: { code: 404, status: "NOT_FOUND", details: [{ reason: "MODEL_NOT_FOUND" }] } }), { status: 404, headers: { "content-type": "application/json" } });
     const text = isKeyTest ? "OK" : tavilyResponseMode === "many_valid" ? bulkCandidateText(capturedGeminiPrompt) : structuredCandidateText(capturedGeminiPrompt);
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }), { status: 200, headers: { "content-type": "application/json" } });
@@ -1145,6 +1153,26 @@ assert.ok(sourceRecordsInForwardKeywordOrder.every((record) => !Object.hasOwn(re
 assert.ok(sourceRecordsInForwardKeywordOrder.every((record) => !Object.hasOwn(record, "linkedin_url")), "Gemini receives source IDs and bounded public evidence, not profile URLs");
 assert.ok(sourceRecordsInForwardKeywordOrder.some((record) => /Test Privacy Leader - CISO \/ CPO at Example Platform/.test(record.snippet)));
 assert.ok(sourceRecordsInForwardKeywordOrder.some((record) => record.matched_role_terms.includes("Privacy Director") && record.retrieval_keywords.length === 5));
+
+DB.lock = null;
+forceGemini35StructuredInvalidArgument = true;
+const geminiCallsBeforeInvalidArgumentFallback = geminiCalls;
+response = await worker.fetch(request("/api/search", {
+  method: "POST",
+  headers: searchHeaders,
+  body: JSON.stringify({ ...searchPayload, additional: "Gemini 3.5 structured-output fallback fixture" }),
+}), env);
+assert.equal(response.status, 200, await response.clone().text());
+const invalidArgumentFallback = await response.json();
+assert.equal(invalidArgumentFallback.status, "ok");
+assert.equal(invalidArgumentFallback.model, "gemini-2.5-flash-lite");
+assert.equal(invalidArgumentFallback.fallbackUsed, true);
+assert.deepEqual(invalidArgumentFallback.attemptedModels, [
+  { model: "gemini-3.5-flash-lite", apiVersion: "v1", status: 400 },
+  { model: "gemini-2.5-flash-lite", apiVersion: "v1", status: 200 },
+]);
+assert.equal(geminiCalls - geminiCallsBeforeInvalidArgumentFallback, 2, "a model-specific INVALID_ARGUMENT falls back once without retrying the same invalid request shape");
+forceGemini35StructuredInvalidArgument = false;
 
 response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify(searchPayload) }), env);
 assert.equal(response.status, 409);
