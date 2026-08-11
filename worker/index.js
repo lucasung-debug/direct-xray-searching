@@ -1558,55 +1558,25 @@ const SEARCH_REVIEW_POOL_MAX = 20;
 const GEMINI_SOURCING_RESPONSE_SCHEMA = Object.freeze({
   type: "OBJECT",
   properties: {
-    candidates: {
+    c: {
       type: "ARRAY",
-      maxItems: SEARCH_REVIEW_POOL_MAX,
       items: {
         type: "OBJECT",
         properties: {
-          sourceId: { type: "STRING", description: "Exact source_id supplied by the server." },
-          name: { type: "STRING", description: "Public display name copied from the source snippet." },
-          company: { type: "STRING", description: "Company copied from the source snippet, or UNKNOWN." },
-          title: { type: "STRING", description: "Current or recent title copied from the source snippet." },
-          location: { type: "STRING", description: "Public location copied from the source snippet, or UNKNOWN." },
-          locationEvidenceExcerpt: { type: "STRING", description: "Exact location excerpt copied from the source, or UNKNOWN." },
-          koreaEvidenceExcerpt: { type: "STRING", description: "One exact supplied Korea evidence value, or UNKNOWN." },
-          evidenceExcerpt: { type: "STRING", description: "One exact contiguous excerpt copied from the source snippet." },
-          signals: {
-            type: "ARRAY",
-            items: {
-              type: "STRING",
-              enum: [
-                "executive_privacy_governance",
-                "privacy_program",
-                "cloud_security_governance",
-                "incident_regulatory_response",
-                "isms_audit",
-                "people_leadership",
-                "platform_data_context",
-                "security_certifications",
-                "role_keyword_match",
-              ],
-            },
-          },
-          verify: { type: "STRING", description: "Concise Korean list of required items not established by public evidence." },
+          id: { type: "STRING" },
+          n: { type: "STRING" },
+          co: { type: "STRING" },
+          t: { type: "STRING" },
+          l: { type: "STRING" },
+          le: { type: "STRING" },
+          e: { type: "STRING" },
+          s: { type: "ARRAY", items: { type: "STRING" } },
         },
-        required: [
-          "sourceId",
-          "name",
-          "company",
-          "title",
-          "location",
-          "locationEvidenceExcerpt",
-          "koreaEvidenceExcerpt",
-          "evidenceExcerpt",
-          "signals",
-          "verify",
-        ],
+        required: ["id", "n", "co", "t", "l", "le", "e", "s"],
       },
     },
   },
-  required: ["candidates"],
+  required: ["c"],
 });
 
 async function callGeminiModel(apiKey, model, apiVersion, prompt, responseSchema = null) {
@@ -1642,11 +1612,7 @@ async function callGeminiModel(apiKey, model, apiVersion, prompt, responseSchema
 
 function geminiFallbackAllowed(result) {
   const status = result && result.response && result.response.status;
-  if (status === 404) return true;
-  const upstreamStatus = result && result.payload && result.payload.error && result.payload.error.status;
-  return status === 400
-    && result.model === result.preferredModel
-    && upstreamStatus === "INVALID_ARGUMENT";
+  return status === 404;
 }
 
 async function callGemini(apiKey, prompt, responseSchema = null) {
@@ -1655,11 +1621,18 @@ async function callGemini(apiKey, prompt, responseSchema = null) {
   const preferredModel = models[0];
   const attempts = [];
   let lastResult = null;
+  let schemaRejection = null;
   for (let index = 0; index < models.length; index += 1) {
     for (const apiVersion of apiVersions) {
       const result = await callGeminiModel(apiKey, models[index], apiVersion, prompt, responseSchema);
       attempts.push({ model: result.model, apiVersion: result.apiVersion, status: result.response.status });
-      lastResult = { ...result, attempts: attempts.slice(), preferredModel };
+      if (responseSchema
+        && result.response.status === 400
+        && result.payload && result.payload.error && result.payload.error.status === "INVALID_ARGUMENT"
+        && !schemaRejection) {
+        schemaRejection = { model: result.model, apiVersion: result.apiVersion };
+      }
+      lastResult = { ...result, attempts: attempts.slice(), preferredModel, schemaRejection };
       if (result.response.ok) return lastResult;
       if (result.response.status !== 404) break;
     }
@@ -1668,13 +1641,51 @@ async function callGemini(apiKey, prompt, responseSchema = null) {
   return lastResult;
 }
 
+async function callGeminiSourcing(apiKey, prompt) {
+  const structuredResult = await callGemini(apiKey, prompt, GEMINI_SOURCING_RESPONSE_SCHEMA);
+  if (!structuredResult || (structuredResult.response && structuredResult.response.ok) || !structuredResult.schemaRejection) {
+    return structuredResult && { ...structuredResult, responseMode: "schema", schemaFallbackUsed: false };
+  }
+  const retry = await callGeminiModel(
+    apiKey,
+    structuredResult.schemaRejection.model,
+    structuredResult.schemaRejection.apiVersion,
+    prompt,
+  );
+  const attempts = [
+    ...(Array.isArray(structuredResult.attempts) ? structuredResult.attempts : []),
+    { model: retry.model, apiVersion: retry.apiVersion, status: retry.response.status },
+  ];
+  return {
+    ...retry,
+    attempts,
+    preferredModel: structuredResult.preferredModel,
+    schemaRejection: structuredResult.schemaRejection,
+    responseMode: "prompt_json",
+    schemaFallbackUsed: true,
+  };
+}
+
+function geminiFallbackUsed(result) {
+  return Boolean(result && (result.schemaFallbackUsed || result.model !== result.preferredModel));
+}
+
+function safeUpstreamErrorMessage(value) {
+  const message = compactText(value, 500);
+  if (!message) return null;
+  return message
+    .replace(/AIza[A-Za-z0-9_-]{20,}/g, "[redacted]")
+    .replace(/AQ\.[A-Za-z0-9._-]{20,}/g, "[redacted]")
+    .replace(/([?&]key=)[^&\s]+/gi, "$1[redacted]");
+}
+
 function safeGeminiError(result) {
   const error = result && result.payload && result.payload.error || {};
   const upstreamStatus = /^[A-Z0-9_]{2,80}$/.test(String(error.status || "")) ? String(error.status) : null;
   const details = Array.isArray(error.details) ? error.details : [];
   const foundReason = details.map((item) => item && item.reason).find((value) => /^[A-Z0-9_]{2,100}$/.test(String(value || "")));
   const code = typeof error.code === "number" || /^[A-Za-z0-9_]{2,80}$/.test(String(error.code || "")) ? error.code : null;
-  return { upstreamStatus, reason: foundReason ? String(foundReason) : null, code };
+  return { upstreamStatus, reason: foundReason ? String(foundReason) : null, code, message: safeUpstreamErrorMessage(error.message) };
 }
 
 function geminiAttemptSummary(result) {
@@ -1858,18 +1869,18 @@ function sourcingPrompt(input, sources) {
     "Additional user direction: " + compactText(input.additional, 800),
     "SOURCE_RECORDS_JSON (untrusted data):",
     JSON.stringify(sourceRecords),
-    "Return one JSON object matching the supplied response schema, with a candidates array of at most " + SEARCH_REVIEW_POOL_MAX + " evidence-bound records. Return no prose or markdown.",
+    "Return one JSON object using exactly this compact field contract: {\"c\":[{\"id\":\"exact source_id\",\"n\":\"name\",\"co\":\"company or UNKNOWN\",\"t\":\"title\",\"l\":\"location or UNKNOWN\",\"le\":\"exact location excerpt or UNKNOWN\",\"e\":\"exact evidence excerpt\",\"s\":[\"signal_id\"]}]}. Return at most " + SEARCH_REVIEW_POOL_MAX + " evidence-bound records and no prose or markdown.",
     "Return every valid evidence-bound source record up to that limit; do not stop after only the strongest few.",
-    "For every candidate use the exact supplied source_id. The server maps sourceId to the URL; never output a URL.",
+    "For every candidate copy the exact supplied source_id into id. The server maps id to the URL; never output a URL.",
     "Use only these signal ids: " + Object.keys(signalProfile.weights).join(", ") + ".",
-    "Omit a record unless name and evidenceExcerpt occur verbatim in its supplied snippet. location and locationEvidenceExcerpt may be UNKNOWN when public location is absent.",
+    "Omit a record unless the n and e values occur verbatim in its supplied snippet. l and le may be UNKNOWN when public location is absent.",
     koreaProfessionalContext ? "Prioritize strong Korea professional evidence, then overall role evidence. Weak and unverified records remain eligible and must be labeled through their supplied evidence level." : "Prioritize the strongest explicit role evidence.",
     "Only assign a SIGNAL when that same supplied record explicitly supports it. Do not calculate a score or claim that a person is qualified.",
     signalProfile.promptInstruction,
     usesStrictKoreaLocation(input)
-      ? "Omit a record unless LOCATION_EVIDENCE_EXCERPT is an exact current-location field or clause showing South Korea, Seoul, Gyeonggi, Incheon, or the Korean capital area. A school, project, responsibility, employer, or past location is never location evidence."
+      ? "Omit a record unless le is an exact current-location field or clause showing South Korea, Seoul, Gyeonggi, Incheon, or the Korean capital area. A school, project, responsibility, employer, or past location is never location evidence."
       : koreaProfessionalContext
-        ? "Do not omit a role-matched record merely because Korea evidence is weak or unverified. For a strong record, KOREA_EVIDENCE_EXCERPT must exactly match one supplied korea_professional_evidence value. For a weak record, it must exactly match one supplied korea_context_evidence value. For an unverified record, use UNKNOWN. Current residence, a school name, a company headquarters, or a project location alone is only a weak clue, never professional evidence. A candidate may live in any country. Never infer or claim nationality, citizenship, ethnicity, or national origin."
+        ? "Do not omit a role-matched record merely because Korea evidence is weak or unverified. Use the supplied korea evidence only to prioritize records; the server retains and validates that evidence separately. Current residence, a school name, a company headquarters, or a project location alone is only a weak clue, never professional evidence. A candidate may live in any country. Never infer or claim nationality, citizenship, ethnicity, or national origin."
         : "Location is optional. Use it only when explicitly stated in the supplied record and never infer protected traits from it.",
     "Do not infer or mention age, birth year, graduation year, gender, family status, health, religion, ethnicity, nationality, citizenship, national origin, or other protected traits.",
   ].join("\n");
@@ -2529,8 +2540,9 @@ function structuredCandidateRecords(text) {
   if (!raw) return [];
   try {
     const payload = JSON.parse(raw);
-    return payload && Array.isArray(payload.candidates)
-      ? payload.candidates.filter((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate)).slice(0, SEARCH_REVIEW_POOL_MAX)
+    const records = Array.isArray(payload) ? payload : payload && (Array.isArray(payload.c) ? payload.c : payload.candidates);
+    return Array.isArray(records)
+      ? records.filter((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate)).slice(0, SEARCH_REVIEW_POOL_MAX)
       : [];
   } catch (_) {
     return [];
@@ -2549,16 +2561,16 @@ function structuredSearchCandidates(result, sources, input) {
   const candidates = [];
   for (const record of records) {
     if (candidates.length >= SEARCH_REVIEW_POOL_MAX) break;
-    const sourceId = compactText(record.sourceId, 20).toUpperCase();
+    const sourceId = compactText(record.id || record.sourceId, 20).toUpperCase();
     const source = sourceMap.get(sourceId);
     if (!source || seenSources.has(sourceId)) continue;
     const sourceText = normalizedEvidenceText(source.title + " " + source.content);
-    const name = redactCandidateText(record.name, 160);
-    const modelTitle = redactCandidateText(record.title, 240);
-    const modelCompany = redactCandidateText(record.company, 180);
-    const modelLocation = redactCandidateText(record.location, 160);
-    const modelLocationEvidence = redactCandidateText(record.locationEvidenceExcerpt, 300);
-    const evidence = redactCandidateText(record.evidenceExcerpt, 1000);
+    const name = redactCandidateText(record.n || record.name, 160);
+    const modelTitle = redactCandidateText(record.t || record.title, 240);
+    const modelCompany = redactCandidateText(record.co || record.company, 180);
+    const modelLocation = redactCandidateText(record.l || record.location, 160);
+    const modelLocationEvidence = redactCandidateText(record.le || record.locationEvidenceExcerpt, 300);
+    const evidence = redactCandidateText(record.e || record.evidenceExcerpt, 1000);
     const verify = redactCandidateText(record.verify, 600);
     const normalizedModelLocation = normalizedEvidenceText(modelLocation);
     const normalizedLocationEvidence = normalizedEvidenceText(modelLocationEvidence);
@@ -2582,7 +2594,7 @@ function structuredSearchCandidates(result, sources, input) {
     if (!name || !evidence || evidence.length < 24) continue;
     if (!sourceText.includes(normalizedEvidenceText(name)) || !sourceText.includes(normalizedEvidenceText(evidence))) continue;
     const scoringSourceText = source.title + " " + source.content;
-    const signals = (Array.isArray(record.signals) ? record.signals : [])
+    const signals = (Array.isArray(record.s) ? record.s : Array.isArray(record.signals) ? record.signals : [])
       .map((item) => compactText(item, 80).toLowerCase())
       .filter((item, index, values) => Object.hasOwn(signalProfile.weights, item) && values.indexOf(item) === index && sourceSupportsSearchSignal(signalProfile, item, scoringSourceText, input));
     if (!signals.length) continue;
@@ -2640,7 +2652,7 @@ function structuredSearchCandidates(result, sources, input) {
       sources: [{ uri: source.url, title: source.title }],
       matchedKeywords: Array.isArray(source.matchedRoleTerms) ? source.matchedRoleTerms.slice(0, 5) : [],
       retrievalKeywords: Array.isArray(source.retrievalKeywords) ? source.retrievalKeywords.slice(0, 5) : [],
-      source: "tavily_linkedin_gemini_json_schema",
+      source: result.responseMode === "prompt_json" ? "tavily_linkedin_gemini_prompt_json" : "tavily_linkedin_gemini_json_schema",
     });
   }
   return {
@@ -2739,7 +2751,7 @@ async function handleSourcingSearch(request, env) {
         return jsonResponse({ status: "public_site_daily_limit", message: "공개 링크의 오늘 검색 예산을 모두 사용했습니다. 한국시간 기준 다음 날 다시 실행하세요.", dailyCreditLimit: publicGlobalBudget.limit, fallbackUrl }, { status: 429 });
       }
     }
-    const maximumUpstreamAttempts = GEMINI_STRUCTURED_MODEL_PRIORITY.length * GEMINI_STRUCTURED_API_VERSION_PRIORITY.length;
+    const maximumUpstreamAttempts = GEMINI_STRUCTURED_MODEL_PRIORITY.length * GEMINI_STRUCTURED_API_VERSION_PRIORITY.length + 1;
     let geminiBudgetAllowed;
     try {
       geminiBudgetAllowed = await reserveDailyGeminiSearch(env, 450, maximumUpstreamAttempts);
@@ -2863,7 +2875,11 @@ async function handleSourcingSearch(request, env) {
       }, { status: 422 });
     }
     let result;
-    try { result = await callGemini(geminiKey, sourcingPrompt(input, sources), GEMINI_SOURCING_RESPONSE_SCHEMA); } catch (_) {
+    try { result = await callGeminiSourcing(geminiKey, sourcingPrompt(input, sources)); } catch (error) {
+      console.error("gemini_analysis_network_error", JSON.stringify({
+        name: compactText(error && error.name, 80) || "Error",
+        message: safeUpstreamErrorMessage(error && error.message),
+      }));
       return jsonResponse({ status: "network_error", message: "개별 검색과 URL 통합은 완료됐지만 Gemini 최종 평가 네트워크 호출에 실패했습니다. 후보 풀에는 병합하지 않았습니다.", plannedQueries, executedQueries, executedKeywords, searchPlan, searchAttempts, usageCredits, fallbackUrl }, { status: 502 });
     }
     if (!result || !result.response || !result.response.ok) {
@@ -2881,7 +2897,16 @@ async function handleSourcingSearch(request, env) {
               : "Gemini 구조화 호출을 완료하지 못했습니다. (HTTP " + status + ") " + attemptSummary;
       const diagnostic = [safeError.upstreamStatus, safeError.reason, safeError.code].filter((value) => value != null).join("/");
       const message = baseMessage + (diagnostic ? " · Google " + diagnostic : "");
-      return jsonResponse({ status: "analysis_api_error", message, httpStatus: status, errorCode: safeError.code, upstreamStatus: safeError.upstreamStatus, reason: safeError.reason, attemptedModels: result && result.attempts || [], plannedQueries, executedQueries, executedKeywords, searchPlan, searchAttempts, usageCredits, fallbackUrl }, { status: status === 429 ? 429 : 502 });
+      console.error("gemini_analysis_api_error", JSON.stringify({
+        status,
+        upstreamStatus: safeError.upstreamStatus,
+        reason: safeError.reason,
+        code: safeError.code,
+        upstreamMessage: safeError.message,
+        attempts: result && result.attempts || [],
+        responseMode: result && result.responseMode || null,
+      }));
+      return jsonResponse({ status: "analysis_api_error", message, httpStatus: status, errorCode: safeError.code, upstreamStatus: safeError.upstreamStatus, reason: safeError.reason, responseMode: result && result.responseMode || null, attemptedModels: result && result.attempts || [], plannedQueries, executedQueries, executedKeywords, searchPlan, searchAttempts, usageCredits, fallbackUrl }, { status: status === 429 ? 429 : 502 });
     }
     const structured = structuredSearchCandidates(result, sources, input);
     const searchCandidates = structured.candidates;
@@ -2902,6 +2927,8 @@ async function handleSourcingSearch(request, env) {
             ? "역할군이 결속된 Tavily 결과를 한국 직무근거의 강도와 함께 Gemini에 전달했지만, JSON 출력의 source ID·직무 excerpt·직무 signal이 원문과 일치하는 후보를 구조화하지 못했습니다. 한국 관련성이 약하거나 미확인이라는 이유만으로는 제외하지 않았습니다."
             : "Tavily 결과는 확인됐지만 Gemini 출력에서 source ID·직무 excerpt·직무 signal이 모두 원문과 일치하는 후보를 구조화하지 못했습니다. 현재 거주지는 탈락 조건으로 사용하지 않았고 국적·시민권도 추론하지 않았습니다.",
         model: result.model,
+        responseMode: result.responseMode,
+        fallbackUsed: geminiFallbackUsed(result),
         attemptedModels: result.attempts || [],
         plannedQueries,
         executedQueries,
@@ -2938,7 +2965,8 @@ async function handleSourcingSearch(request, env) {
       mode: "tavily_gemini_ephemeral",
       providers: { search: "tavily", structure: "gemini" },
       model: result.model,
-      fallbackUsed: result.model !== result.preferredModel,
+      responseMode: result.responseMode,
+      fallbackUsed: geminiFallbackUsed(result),
       attemptedModels: result.attempts,
       text: executedKeywords.length + "개 키워드를 각각 검색하고 URL 기준 합집합·중복 제거 후 역할군 문맥을 검증했습니다." + koreaEvidenceSummary + " Gemini JSON 평가에서 source ID·직무 excerpt·직무 signal이 원문과 일치한 후보 " + searchCandidates.length + "명을 회수했습니다. " + (preparedSources.strictKoreaLocation ? "해외 또는 위치 미확인 결과 " + locationFilteredCount + "건은 제외했습니다. " : "현재 거주지는 필터링하지 않았으며 국적·시민권은 추론하지 않았습니다. ") + "모든 프로필 사실은 사람이 원문에서 검증해야 합니다.",
       candidates: searchCandidates,
