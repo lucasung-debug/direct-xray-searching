@@ -147,6 +147,12 @@ assert.match(home, /function startSearchProgress\(keywordCount\)/);
 assert.match(home, /function finishSearchProgress\(state,title,copy\)/);
 assert.match(home, /@keyframes search-shimmer/);
 assert.match(home, /id="search-summary"/);
+assert.match(home, /id="pool-sort"/);
+assert.match(home, /평가 점수 높은순/);
+assert.match(home, /한국 직무근거 우선/);
+assert.match(home, /Tavily 관련도순 · 보조/);
+assert.match(home, /function sortCandidatesForReview\(items,mode\)/);
+assert.match(home, /검색 1회 최대 20명/);
 assert.doesNotMatch(home, /id="search-sources"|id="search-suggestions"|Tavily 실행어|설계 X-ray|키워드 성과/, "raw queries, source dumps, and per-keyword diagnostics are not rendered in the recruiter UI");
 assert.match(home, /CPO 프리셋은 해외 거주자도 검색/);
 assert.match(home, /국적·시민권 자동 추론 안 함/);
@@ -256,11 +262,11 @@ const mergeSandbox = {
   mergeInput: [{
     name: "Model Rewrite", company: "Model Co", title: "Model CPO", location: "Busan", score: 99, coverage: "High",
     summary: "Model evidence", koreaEvidence: "Korea privacy", koreaEvidenceLevel: "strong", tags: ["개인정보 프로그램"], verify: "재확인",
-    url: "https://linkedin.com/in/human-verified/", sources: [{ uri: "https://example.com/new-evidence", title: "New evidence" }], matchedKeywords: ["Head of Privacy"],
+    url: "https://linkedin.com/in/human-verified/", retrievalScore: 93, sources: [{ uri: "https://example.com/new-evidence", title: "New evidence" }], matchedKeywords: ["Head of Privacy"],
   }, {
     name: "Fresh Auto", company: "Fresh Co", title: "Fresh CPO", location: "Seoul", score: 88, coverage: "High",
     summary: "New model evidence", koreaEvidence: "PIPA", koreaEvidenceLevel: "strong", tags: ["privacy"], verify: "new",
-    url: "https://www.linkedin.com/in/auto-refresh", sources: [{ uri: "https://example.com/refreshed", title: "Refreshed evidence" }], matchedKeywords: ["CPO"],
+    url: "https://www.linkedin.com/in/auto-refresh", retrievalScore: 87, sources: [{ uri: "https://example.com/refreshed", title: "Refreshed evidence" }], matchedKeywords: ["CPO"],
   }, {
     name: "New Search Candidate", company: "New Co", title: "CISO", location: "Seoul", score: 70, coverage: "High",
     summary: "Search evidence", koreaEvidence: "ISMS-P", koreaEvidenceLevel: "strong", tags: ["ISMS 심사"], verify: "원문 확인",
@@ -281,6 +287,7 @@ assert.equal(mergeSandbox.candidates[0].summary, "Human-reviewed evidence");
 assert.equal(mergeSandbox.candidates[0].auto, true);
 assert.equal(mergeSandbox.candidates[0].koreaEvidence, "Korea privacy");
 assert.equal(mergeSandbox.candidates[0].koreaEvidenceLevel, "strong");
+assert.equal(mergeSandbox.candidates[0].retrievalScore, 93);
 assert.equal(mergeSandbox.candidates[0].sources.length, 2);
 assert.deepEqual(Array.from(mergeSandbox.candidates[0].matchedKeywords), ["CPO", "Head of Privacy"]);
 assert.equal(mergeSandbox.candidates[1].id, "auto-1");
@@ -289,8 +296,28 @@ assert.equal(mergeSandbox.candidates[1].score, 88);
 assert.equal(mergeSandbox.candidates[1].summary, "New model evidence");
 assert.equal(mergeSandbox.candidates[1].koreaEvidence, "PIPA");
 assert.equal(mergeSandbox.candidates[1].koreaEvidenceLevel, "strong");
+assert.equal(mergeSandbox.candidates[1].retrievalScore, 87);
 assert.equal(mergeSandbox.candidates[1].sources.length, 2);
 assert.equal(mergeSandbox.candidates[2].koreaEvidence, "ISMS-P");
+
+const sortSandbox = {
+  sortInput: [
+    { name: "Strong Lower", score: 60, koreaEvidenceLevel: "strong", retrievalScore: 70 },
+    { name: "Weak Higher", score: 90, koreaEvidenceLevel: "weak", retrievalScore: 99 },
+    { name: "Strong Higher", score: 80, koreaEvidenceLevel: "strong", retrievalScore: 50 },
+    { name: "Manual No Retrieval", score: 95, koreaEvidenceLevel: "", retrievalScore: null },
+  ],
+};
+vm.createContext(sortSandbox);
+vm.runInContext([
+  extractBrowserFunction(home, "sortCandidatesForReview"),
+  "scoreOrder=sortCandidatesForReview(sortInput,'score_desc').map(function(item){return item.name});",
+  "evidenceOrder=sortCandidatesForReview(sortInput,'evidence_desc').map(function(item){return item.name});",
+  "retrievalOrder=sortCandidatesForReview(sortInput,'retrieval_desc').map(function(item){return item.name});",
+].join("\n"), sortSandbox);
+assert.deepEqual(Array.from(sortSandbox.scoreOrder), ["Manual No Retrieval", "Weak Higher", "Strong Higher", "Strong Lower"]);
+assert.deepEqual(Array.from(sortSandbox.evidenceOrder), ["Strong Higher", "Strong Lower", "Weak Higher", "Manual No Retrieval"]);
+assert.deepEqual(Array.from(sortSandbox.retrievalOrder), ["Weak Higher", "Strong Lower", "Strong Higher", "Manual No Retrieval"]);
 
 const manualSafetySandbox = { URL };
 vm.createContext(manualSafetySandbox);
@@ -475,6 +502,24 @@ const structuredCandidateText = (prompt) => JSON.stringify({
       signals: ["executive_privacy_governance"],
     }),
   ].filter(Boolean),
+});
+const bulkCandidateText = (prompt) => JSON.stringify({
+  candidates: sourceRecordsFromPrompt(prompt).slice(0, 25).map((record) => {
+    const match = String(record.snippet || "").match(/(Bulk Korea Candidate \d+-\d+) serves as ([^\r\n.]+?) and leads an ISMS-P privacy program for Korean business\./);
+    if (!match) return null;
+    return {
+      sourceId: record.source_id,
+      name: match[1],
+      company: "UNKNOWN",
+      title: match[2],
+      location: "UNKNOWN",
+      locationEvidenceExcerpt: "UNKNOWN",
+      koreaEvidenceExcerpt: "ISMS-P",
+      evidenceExcerpt: match[0],
+      signals: ["privacy_program", "isms_audit"],
+      verify: "원문 확인 필요",
+    };
+  }).filter(Boolean),
 });
 
 globalThis.fetch = async (url, init = {}) => {
@@ -898,8 +943,10 @@ globalThis.fetch = async (url, init = {}) => {
     } else {
       assert.equal(body.generationConfig.responseMimeType, "application/json");
       assert.equal(body.generationConfig.responseSchema.type, "OBJECT");
-      assert.equal(body.generationConfig.responseSchema.properties.candidates.maxItems, 8);
+      assert.equal(body.generationConfig.responseSchema.properties.candidates.maxItems, 20);
       assert.equal(body.generationConfig.temperature, 0.1);
+      assert.match(capturedGeminiPrompt, /candidates array of at most 20 evidence-bound records/);
+      assert.match(capturedGeminiPrompt, /do not stop after only the strongest few/);
     }
     if (!isKeyTest && tavilyResponseMode !== "many_valid") {
       assert.doesNotMatch(capturedGeminiPrompt, /45세|External result|candidate@example\.com|private\.example|10-1234-5678|415 555 0123/);
@@ -929,7 +976,7 @@ globalThis.fetch = async (url, init = {}) => {
     const model = modelMatch[2];
     if (forceGeminiStatus) return new Response(JSON.stringify({ error: { code: forceGeminiStatus, status: forceGeminiStatus === 401 ? "UNAUTHENTICATED" : "PERMISSION_DENIED", details: [{ reason: forceGeminiStatus === 401 ? "API_KEY_INVALID" : "SERVICE_DISABLED" }] } }), { status: forceGeminiStatus, headers: { "content-type": "application/json" } });
     if (model === "gemini-3.5-flash-lite") return new Response(JSON.stringify({ error: { code: 404, status: "NOT_FOUND", details: [{ reason: "MODEL_NOT_FOUND" }] } }), { status: 404, headers: { "content-type": "application/json" } });
-    const text = isKeyTest ? "OK" : tavilyResponseMode === "many_valid" ? JSON.stringify({ candidates: [] }) : structuredCandidateText(capturedGeminiPrompt);
+    const text = isKeyTest ? "OK" : tavilyResponseMode === "many_valid" ? bulkCandidateText(capturedGeminiPrompt) : structuredCandidateText(capturedGeminiPrompt);
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }), { status: 200, headers: { "content-type": "application/json" } });
   }
   throw new Error("Unexpected upstream URL: " + target);
@@ -982,7 +1029,9 @@ assert.deepEqual(search.searchPlan, {
   publicSiteDailyCreditLimit: null,
   perQueryMaxResults: 20,
   geminiSourceCap: 50,
+  reviewPoolMax: 20,
   retrievalWeighting: false,
+  retrievalScoreExposed: true,
   exactRoleKeywordGate: false,
   roleFamilyGate: true,
   koreaProfessionalEvidenceGate: false,
@@ -1000,6 +1049,7 @@ assert.equal(search.candidates.length, 8, "role-bound candidates remain reviewab
 assert.equal(search.candidates[0].name, "Test Privacy Leader");
 assert.equal(search.candidates[0].url, "https://www.linkedin.com/in/test-privacy-leader");
 assert.equal(search.candidates[0].score, 84);
+assert.equal(search.candidates[0].retrievalScore, 91);
 assert.equal(search.candidates[0].source, "tavily_linkedin_gemini_json_schema");
 assert.deepEqual(search.candidates[0].sources, [{ uri: "https://www.linkedin.com/in/test-privacy-leader", title: "Test Privacy Leader - CISO / CPO at Example Platform | LinkedIn" }]);
 assert.deepEqual(search.candidates[0].matchedKeywords, ["CISO", "CPO"], "only role keywords actually present in the source are attributed to a candidate");
@@ -1118,13 +1168,19 @@ assert.deepEqual(sourceRecordsFromPrompt(capturedGeminiPrompt), sourceRecordsInF
 DB.lock = null;
 tavilyResponseMode = "many_valid";
 response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify(searchPayload) }), env);
-assert.equal(response.status, 422);
+assert.equal(response.status, 200, await response.clone().text());
 const fiftySourceEvaluation = await response.json();
-assert.equal(fiftySourceEvaluation.status, "no_candidates");
+assert.equal(fiftySourceEvaluation.status, "ok");
 assert.equal(fiftySourceEvaluation.retrievedSourceCount, 50, "the full five-query union can reach final evaluation instead of being silently cut to 20");
 assert.equal(fiftySourceEvaluation.sourceCappedCount, 0);
 assert.equal(sourceRecordsFromPrompt(capturedGeminiPrompt).length, 50);
-assert.ok(fiftySourceEvaluation.keywordMetrics.every((metric) => metric.rawResultCount === 10 && metric.uniqueProfileCount === 10 && metric.locationPassedProfileCount === 10 && metric.finalAcceptedCandidateCount === 0));
+assert.equal(fiftySourceEvaluation.candidates.length, 20, "the review pool accepts twenty evidence-bound candidates while enforcing its deterministic cap");
+assert.equal(fiftySourceEvaluation.acceptedResultCount, 20);
+assert.equal(fiftySourceEvaluation.sources.length, 20);
+assert.equal(new Set(fiftySourceEvaluation.candidates.map((candidate) => candidate.url)).size, 20);
+assert.ok(fiftySourceEvaluation.candidates.every((candidate) => candidate.retrievalScore === 80));
+assert.ok(fiftySourceEvaluation.keywordMetrics.every((metric) => metric.rawResultCount === 10 && metric.uniqueProfileCount === 10 && metric.locationPassedProfileCount === 10));
+assert.equal(fiftySourceEvaluation.keywordMetrics.reduce((sum, metric) => sum + metric.finalAcceptedCandidateCount, 0), 20);
 tavilyResponseMode = "normal";
 
 DB.lock = null;

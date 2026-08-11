@@ -621,7 +621,7 @@ const SOURCING_HTML = String.raw`<!doctype html>
     .search-message{margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--soft);white-space:pre-wrap;line-height:1.6;font-size:12px}.fallback{display:inline-block;margin-top:12px;color:var(--blue);font-weight:850;font-size:12px}
     .search-output.masked-output .search-summary,.search-output.masked-output .search-message,.search-output.masked-output .fallback{display:none!important}
     @keyframes search-spin{to{transform:rotate(360deg)}}@keyframes search-shimmer{from{transform:translateX(-130%)}to{transform:translateX(310%)}}
-    .pool{padding:22px}.pool-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.pool-head h2{margin:4px 0 5px}
+    .pool{padding:22px}.pool-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.pool-head h2{margin:4px 0 5px}.pool-tools{display:grid;justify-items:end;gap:9px}.pool-sort{display:flex;align-items:center;gap:7px}.pool-sort label{color:var(--muted);font-size:10px;font-weight:850}.pool-sort select{min-width:190px;border:1px solid #cbd3df;border-radius:9px;background:#fff;color:var(--ink);padding:8px 10px;outline:none;font-size:11px;font-weight:750}.pool-sort select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(34,94,234,.12)}
     .pills{display:flex;gap:6px;flex-wrap:wrap}.pill{display:inline-flex;border-radius:999px;padding:6px 8px;background:var(--soft);color:var(--muted);font-size:10px;font-weight:800}.pill.blue{background:var(--blue-soft);color:var(--blue)}.pill.green{background:var(--green-soft);color:var(--green)}.pill.amber{background:var(--amber-soft);color:var(--amber)}
     .cards{display:grid;gap:10px;margin-top:17px}.empty-pool{padding:34px 20px;border:1px dashed #b9c7dc;border-radius:14px;background:#f8faff;text-align:center}.empty-pool strong{display:block;font-size:16px}.empty-pool span{display:block;margin-top:7px;color:var(--muted);font-size:12px;line-height:1.6}.candidate{position:relative;display:grid;grid-template-columns:68px minmax(0,1fr);gap:14px;padding:16px;border:1px solid var(--line);border-radius:14px;background:#fff}.rank{position:absolute;top:10px;right:12px;color:#9aa4b5;font-size:10px;font-weight:900}
     .score{width:64px;height:64px;border-radius:18px;background:var(--navy);color:#fff;display:grid;place-items:center;text-align:center}.score strong{display:block;font-size:22px}.score span{font-size:8px;color:#bcd0f8}
@@ -637,7 +637,7 @@ const SOURCING_HTML = String.raw`<!doctype html>
     .toast{position:fixed;right:22px;bottom:22px;z-index:60;max-width:380px;padding:12px 15px;border-radius:11px;background:#172033;color:#fff;box-shadow:var(--shadow);font-size:12px;opacity:0;transform:translateY(10px);pointer-events:none;transition:.2s}.toast.show{opacity:1;transform:none}
     .hidden{display:none!important}
     @media(max-width:980px){.layout{grid-template-columns:1fr}.sidebar{position:static}.flow{grid-template-columns:repeat(3,1fr)}.parity-grid{grid-template-columns:1fr}}
-    @media(max-width:640px){.topbar{height:auto;min-height:68px;padding:11px 14px}.brand>span:not(.brand-mark){display:none}.brand .brand-mark{display:grid}.top-actions{gap:4px}.top-actions .btn{padding:8px 9px;font-size:11px}.top-actions .label{display:none}.layout{width:min(100% - 18px,1540px);margin-top:10px}.hero,.sidebar,.pool,.search-output{padding:18px}.hero h2{font-size:28px}.flow{grid-template-columns:repeat(2,1fr)}.search-flow{grid-template-columns:1fr}.search-step b{white-space:normal}.search-summary{grid-template-columns:repeat(2,1fr)}.manual-grid{grid-template-columns:1fr}.manual-grid .full{grid-column:auto}.candidate{grid-template-columns:58px minmax(0,1fr);padding:13px}.score{width:54px;height:54px;border-radius:15px}.card-foot{grid-column:1/-1}.parity-item{grid-template-columns:52px 1fr}}
+    @media(max-width:640px){.topbar{height:auto;min-height:68px;padding:11px 14px}.brand>span:not(.brand-mark){display:none}.brand .brand-mark{display:grid}.top-actions{gap:4px}.top-actions .btn{padding:8px 9px;font-size:11px}.top-actions .label{display:none}.layout{width:min(100% - 18px,1540px);margin-top:10px}.hero,.sidebar,.pool,.search-output{padding:18px}.hero h2{font-size:28px}.flow{grid-template-columns:repeat(2,1fr)}.search-flow{grid-template-columns:1fr}.search-step b{white-space:normal}.search-summary{grid-template-columns:repeat(2,1fr)}.pool-head{display:grid}.pool-tools{justify-items:stretch}.pool-sort{justify-content:space-between}.pool-sort select{min-width:0;flex:1}.manual-grid{grid-template-columns:1fr}.manual-grid .full{grid-column:auto}.candidate{grid-template-columns:58px minmax(0,1fr);padding:13px}.score{width:54px;height:54px;border-radius:15px}.card-foot{grid-column:1/-1}.parity-item{grid-template-columns:52px 1fr}}
     @media(prefers-reduced-motion:reduce){.search-progress-bar{transition:none}.search-progress[data-state="loading"] .search-status-icon:after,.search-progress[data-state="loading"] .search-progress-bar:after{animation:none}}
   </style>
 </head>
@@ -718,8 +718,11 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
 
       <section class="panel pool">
         <div class="pool-head">
-          <div><div class="eyebrow">Review candidate pool</div><h2 id="pool-title">검토 후보 0명</h2><p class="muted" id="pool-subtitle">현재 탭 전용 · 새로고침/닫기 시 삭제 · 다른 사용자와 자동 공유 안 됨</p></div>
-          <div class="pills"><span class="pill green">사람 검토 필수</span><span class="pill amber">합격확률 아님</span><span class="pill blue" id="manual-count">검색 추가 0 · 수동 0</span></div>
+          <div><div class="eyebrow">Review candidate pool</div><h2 id="pool-title">검토 후보 0명</h2><p class="muted" id="pool-subtitle">검색 1회 최대 20명 · 현재 탭 전용 · 새로고침/닫기 시 삭제</p></div>
+          <div class="pool-tools">
+            <div class="pool-sort"><label for="pool-sort">후보 정렬</label><select id="pool-sort"><option value="score_desc">평가 점수 높은순</option><option value="evidence_desc">한국 직무근거 우선</option><option value="retrieval_desc">Tavily 관련도순 · 보조</option></select></div>
+            <div class="pills"><span class="pill green">사람 검토 필수</span><span class="pill amber">합격확률 아님</span><span class="pill blue">1회 최대 20명</span><span class="pill blue" id="manual-count">검색 추가 0 · 수동 0</span></div>
+          </div>
         </div>
         <div class="cards" id="candidate-grid"></div>
         <div class="pool-actions">
@@ -873,8 +876,23 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         var messages={protected:"연령·국적·시민권·민족 등 보호정보는 검색이나 점수에 사용할 수 없습니다. 한국어·한국 시장·규제 경험처럼 직무 관련 조건으로 입력하세요.",private:"URL·이메일·전화번호 같은 후보 식별정보는 검색 조건에 넣을 수 없습니다.",missing_keywords:"검색 키워드를 한 줄에 하나 이상 입력하세요.",too_many_keywords:"검색 키워드는 한 번에 최대 5개까지 입력할 수 있습니다.",non_atomic:"OR·AND·슬래시·검색 연산자를 섞지 말고 한 줄에 하나의 키워드만 입력하세요."};
         toast(messages[issue]||"검색 조건을 확인하세요.");
       }
+      function sortCandidatesForReview(items,mode){
+        function evidenceRank(item){var level=String(item&&item.koreaEvidenceLevel||"");return level==="strong"?3:level==="weak"?2:level==="unverified"?1:0}
+        function scoreValue(item){var value=Number(item&&item.score);return Number.isFinite(value)?value:0}
+        function retrievalValue(item){var raw=item&&item.retrievalScore;if(raw===null||raw===undefined||raw==="")return -1;var value=Number(raw);return Number.isFinite(value)?value:-1}
+        function nameOrder(left,right){return String(left&&left.name||"").localeCompare(String(right&&right.name||""),"ko")}
+        return (Array.isArray(items)?items:[]).slice().sort(function(left,right){
+          var scoreDiff=scoreValue(right)-scoreValue(left);
+          var evidenceDiff=evidenceRank(right)-evidenceRank(left);
+          var retrievalDiff=retrievalValue(right)-retrievalValue(left);
+          if(mode==="evidence_desc")return evidenceDiff||scoreDiff||retrievalDiff||nameOrder(left,right);
+          if(mode==="retrieval_desc")return retrievalDiff||scoreDiff||evidenceDiff||nameOrder(left,right);
+          return scoreDiff||evidenceDiff||retrievalDiff||nameOrder(left,right);
+        });
+      }
       function renderCandidates(){
-        var sorted=candidates.slice().sort(function(a,b){return b.score-a.score});
+        var sortControl=byId("pool-sort");
+        var sorted=sortCandidatesForReview(candidates,sortControl?sortControl.value:"score_desc");
         var grid=byId("candidate-grid");grid.innerHTML="";
         if(!sorted.length){
           var empty=document.createElement("div");empty.className="empty-pool";
@@ -895,15 +913,16 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
           var koreaEvidenceLabel=koreaEvidenceLevel==="strong"?"한국 직무근거":koreaEvidenceLevel==="weak"?"한국 관련 단서":koreaEvidenceLevel==="unverified"?"한국 근거 미확인":"";
           var koreaEvidenceClass=koreaEvidenceLevel==="strong"?"green":"amber";
           var koreaEvidencePill=masked?"":(koreaEvidenceLabel?"<span class='pill "+koreaEvidenceClass+"'>"+esc(koreaEvidenceLabel)+(item.koreaEvidence?" · "+esc(item.koreaEvidence):"")+"</span>":"");
+          var retrievalPill=masked||item.retrievalScore===null||item.retrievalScore===undefined?"":"<span class='pill' title='해당 Tavily 검색의 보조 관련도이며 직무 적합도 또는 합격확률이 아닙니다.'>Tavily 관련도 "+esc(item.retrievalScore)+"/100</span>";
           var verifyPill=masked?"<span class='pill amber'>검증정보 가림</span>":"<span class='pill amber'>VERIFY · "+esc(item.verify)+"</span>";
-          card.innerHTML="<span class='rank'>#"+(index+1)+"</span><div class='score'><div><strong>"+esc(item.score)+"</strong><span>우선검토</span></div></div><div><h3>"+esc(name)+"</h3><div class='role'>"+esc(role)+"</div><p class='summary'>"+esc(summary)+"</p><div class='tags'>"+tags+"</div></div><div class='card-foot'><div class='pills'><span class='pill blue'>Coverage "+esc(item.coverage)+"</span>"+verifyPill+koreaEvidencePill+keywordPill+(item.auto?"<span class='pill green'>Tavily 자동추가</span>":"")+(item.manual?"<span class='pill green'>원문 확인 수동추가</span>":"")+sourceLinks+"</div>"+link+"</div>";
+          card.innerHTML="<span class='rank'>#"+(index+1)+"</span><div class='score'><div><strong>"+esc(item.score)+"</strong><span>우선검토</span></div></div><div><h3>"+esc(name)+"</h3><div class='role'>"+esc(role)+"</div><p class='summary'>"+esc(summary)+"</p><div class='tags'>"+tags+"</div></div><div class='card-foot'><div class='pills'><span class='pill blue'>Coverage "+esc(item.coverage)+"</span>"+verifyPill+koreaEvidencePill+keywordPill+retrievalPill+(item.auto?"<span class='pill green'>Tavily 자동추가</span>":"")+(item.manual?"<span class='pill green'>원문 확인 수동추가</span>":"")+sourceLinks+"</div>"+link+"</div>";
           grid.appendChild(card);
         });
         var manual=candidates.filter(function(x){return x.manual}).length;
         var auto=candidates.filter(function(x){return x.auto}).length;
         byId("manual-count").textContent="검색 추가 "+auto+" · 수동 "+manual;
         byId("pool-title").textContent="검토 후보 "+candidates.length+"명";
-        byId("pool-subtitle").textContent=(auto||manual)?"현재 탭 전용 · URL 중복 제거·전체 재정렬 · 새로고침/닫기 시 삭제 · 다른 사용자와 자동 공유 안 됨":"현재 탭 전용 · 새로고침/닫기 시 삭제 · 다른 사용자와 자동 공유 안 됨";
+        byId("pool-subtitle").textContent=(auto||manual)?"검색 1회 최대 20명 · 현재 탭 전용 · URL 중복 제거·선택 기준 재정렬 · 새로고침/닫기 시 삭제":"검색 1회 최대 20명 · 현재 탭 전용 · 새로고침/닫기 시 삭제";
         setBusy(busy);
       }
       function formPayload(mode){
@@ -917,7 +936,8 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         var added=0,updated=0;
         (Array.isArray(items)?items:[]).forEach(function(raw,index){
           var url=canonicalUrl(raw&&raw.url);if(!url)return;
-          var item={id:"g"+Date.now()+"-"+index,name:String(raw.name||""),company:String(raw.company||"회사 확인 필요"),title:String(raw.title||""),location:String(raw.location||"공개 정보 확인 필요"),score:Math.max(0,Math.min(100,Number(raw.score)||0)),coverage:String(raw.coverage||"Low"),summary:String(raw.summary||""),koreaEvidence:String(raw.koreaEvidence||""),koreaEvidenceLevel:String(raw.koreaEvidenceLevel||""),tags:Array.isArray(raw.tags)?raw.tags.slice(0,5):[],verify:String(raw.verify||"필수 gate 원문 검증"),url:url,manual:false,auto:true,sources:Array.isArray(raw.sources)?raw.sources:[],matchedKeywords:Array.isArray(raw.matchedKeywords)?raw.matchedKeywords.slice(0,5):[],retrievalKeywords:Array.isArray(raw.retrievalKeywords)?raw.retrievalKeywords.slice(0,5):[]};
+          var rawRetrievalScore=raw&&raw.retrievalScore;var numericRetrievalScore=Number(rawRetrievalScore);
+          var item={id:"g"+Date.now()+"-"+index,name:String(raw.name||""),company:String(raw.company||"회사 확인 필요"),title:String(raw.title||""),location:String(raw.location||"공개 정보 확인 필요"),score:Math.max(0,Math.min(100,Number(raw.score)||0)),retrievalScore:rawRetrievalScore===null||rawRetrievalScore===undefined||rawRetrievalScore===""||!Number.isFinite(numericRetrievalScore)?null:Math.max(0,Math.min(100,Math.round(numericRetrievalScore))),coverage:String(raw.coverage||"Low"),summary:String(raw.summary||""),koreaEvidence:String(raw.koreaEvidence||""),koreaEvidenceLevel:String(raw.koreaEvidenceLevel||""),tags:Array.isArray(raw.tags)?raw.tags.slice(0,5):[],verify:String(raw.verify||"필수 gate 원문 검증"),url:url,manual:false,auto:true,sources:Array.isArray(raw.sources)?raw.sources:[],matchedKeywords:Array.isArray(raw.matchedKeywords)?raw.matchedKeywords.slice(0,5):[],retrievalKeywords:Array.isArray(raw.retrievalKeywords)?raw.retrievalKeywords.slice(0,5):[]};
           if(!item.name||!item.title||!item.summary)return;
           var existingIndex=candidates.findIndex(function(candidate){return canonicalUrl(candidate.url)===url});
           if(existingIndex>=0){
@@ -925,7 +945,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
             var sourceMap={};(existing.sources||[]).concat(item.sources||[]).forEach(function(source){var key=canonicalUrl(source&&source.uri)||safeHttpUrl(source&&source.uri);if(key&&!sourceMap[key])sourceMap[key]=source});
             var keywordMap={};(existing.matchedKeywords||[]).concat(item.matchedKeywords||[]).forEach(function(keyword){var key=String(keyword||"").trim().toLowerCase();if(key&&!keywordMap[key])keywordMap[key]=String(keyword).trim()});
             if(existing.manual){
-              candidates[existingIndex]={id:existing.id,name:existing.name,company:existing.company,title:existing.title,location:existing.location,score:existing.score,coverage:existing.coverage,summary:existing.summary,koreaEvidence:item.koreaEvidence||existing.koreaEvidence||"",koreaEvidenceLevel:item.koreaEvidenceLevel||existing.koreaEvidenceLevel||"",tags:existing.tags,verify:existing.verify,url:existing.url,manual:true,auto:true,sources:Object.keys(sourceMap).map(function(key){return sourceMap[key]}).slice(0,6),matchedKeywords:Object.keys(keywordMap).map(function(key){return keywordMap[key]}).slice(0,5),retrievalKeywords:item.retrievalKeywords||existing.retrievalKeywords||[]};
+              candidates[existingIndex]={id:existing.id,name:existing.name,company:existing.company,title:existing.title,location:existing.location,score:existing.score,retrievalScore:item.retrievalScore===null?(existing.retrievalScore===undefined?null:existing.retrievalScore):item.retrievalScore,coverage:existing.coverage,summary:existing.summary,koreaEvidence:item.koreaEvidence||existing.koreaEvidence||"",koreaEvidenceLevel:item.koreaEvidenceLevel||existing.koreaEvidenceLevel||"",tags:existing.tags,verify:existing.verify,url:existing.url,manual:true,auto:true,sources:Object.keys(sourceMap).map(function(key){return sourceMap[key]}).slice(0,6),matchedKeywords:Object.keys(keywordMap).map(function(key){return keywordMap[key]}).slice(0,5),retrievalKeywords:item.retrievalKeywords||existing.retrievalKeywords||[]};
             }else{
               item.id=existing.id;item.sources=Object.keys(sourceMap).map(function(key){return sourceMap[key]}).slice(0,6);item.matchedKeywords=Object.keys(keywordMap).map(function(key){return keywordMap[key]}).slice(0,5);candidates[existingIndex]=item;
             }
@@ -1081,7 +1101,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         if(issue==="private"){toast("수동 근거에는 이메일·전화번호·추가 URL 같은 연락처·비공개 식별정보를 입력할 수 없습니다.");return}
         if(!byId("candidate-reviewed").checked){toast("공개 원문 직접 확인 체크가 필요합니다.");return}
         var existing=candidates.find(function(item){return canonicalUrl(item.url)===url});
-        var item={id:existing?existing.id:"m"+Date.now(),name:name,company:company,title:title,location:"원문 확인",score:score,coverage:byId("candidate-coverage").value,summary:evidence,koreaEvidence:existing&&existing.koreaEvidence||"",koreaEvidenceLevel:existing&&existing.koreaEvidenceLevel||"",tags:["원문 확인","수동 추가"],verify:"구조화 검증·독립 리뷰",url:url,manual:true,auto:Boolean(existing&&existing.auto),sources:existing&&Array.isArray(existing.sources)?existing.sources:[],matchedKeywords:existing&&Array.isArray(existing.matchedKeywords)?existing.matchedKeywords:[],retrievalKeywords:existing&&Array.isArray(existing.retrievalKeywords)?existing.retrievalKeywords:[]};
+        var item={id:existing?existing.id:"m"+Date.now(),name:name,company:company,title:title,location:"원문 확인",score:score,retrievalScore:existing&&existing.retrievalScore!==undefined?existing.retrievalScore:null,coverage:byId("candidate-coverage").value,summary:evidence,koreaEvidence:existing&&existing.koreaEvidence||"",koreaEvidenceLevel:existing&&existing.koreaEvidenceLevel||"",tags:["원문 확인","수동 추가"],verify:"구조화 검증·독립 리뷰",url:url,manual:true,auto:Boolean(existing&&existing.auto),sources:existing&&Array.isArray(existing.sources)?existing.sources:[],matchedKeywords:existing&&Array.isArray(existing.matchedKeywords)?existing.matchedKeywords:[],retrievalKeywords:existing&&Array.isArray(existing.retrievalKeywords)?existing.retrievalKeywords:[]};
         if(existing){candidates=candidates.map(function(x){return x.id===existing.id?item:x});toast("같은 URL의 후보를 갱신하고 전체 재정렬했습니다.")}
         else{candidates.push(item);toast("검증 후보를 병합하고 전체 재정렬했습니다.")}
         ["candidate-name","candidate-company","candidate-title","candidate-url","candidate-evidence"].forEach(function(id){byId(id).value=""});byId("candidate-reviewed").checked=false;
@@ -1091,6 +1111,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
       byId("search-button").addEventListener("click",function(){runSearch("initial")});
       byId("more-button").addEventListener("click",function(){runSearch("more")});
       byId("fallback-button").addEventListener("click",openFallback);
+      byId("pool-sort").addEventListener("change",function(){renderCandidates();toast("후보 정렬 기준을 바꿨습니다.")});
       byId("mask-toggle").addEventListener("click",function(){masked=!masked;this.textContent=masked?"출력 가림 해제":"후보 출력 가림";byId("search-output").classList.toggle("masked-output",masked);byId("manual-add").closest(".pool").classList.toggle("masked-pool",masked);renderCandidates();toast(masked?"후보 출력만 가렸습니다. 공동 검토용 좌측 검색 조건은 계속 보입니다.":"내부 검토 보기를 복원했습니다.")});
       byId("reset-button").addEventListener("click",function(){
         candidates=snapshotCandidates.slice();searchRound=0;lastSearchSignature="";successfulSearch=false;fallbackUrl="";
@@ -1521,12 +1542,14 @@ async function handleTavilySettings(request, env) {
   return handleProviderSettings(request, env, "tavily");
 }
 
+const SEARCH_REVIEW_POOL_MAX = 20;
+
 const GEMINI_SOURCING_RESPONSE_SCHEMA = Object.freeze({
   type: "OBJECT",
   properties: {
     candidates: {
       type: "ARRAY",
-      maxItems: 8,
+      maxItems: SEARCH_REVIEW_POOL_MAX,
       items: {
         type: "OBJECT",
         properties: {
@@ -1818,7 +1841,8 @@ function sourcingPrompt(input, sources) {
     "Additional user direction: " + compactText(input.additional, 800),
     "SOURCE_RECORDS_JSON (untrusted data):",
     JSON.stringify(sourceRecords),
-    "Return one JSON object matching the supplied response schema, with a candidates array of at most eight evidence-bound records. Return no prose or markdown.",
+    "Return one JSON object matching the supplied response schema, with a candidates array of at most " + SEARCH_REVIEW_POOL_MAX + " evidence-bound records. Return no prose or markdown.",
+    "Return every valid evidence-bound source record up to that limit; do not stop after only the strongest few.",
     "For every candidate use the exact supplied source_id. The server maps sourceId to the URL; never output a URL.",
     "Use only these signal ids: " + Object.keys(signalProfile.weights).join(", ") + ".",
     "Omit a record unless name and evidenceExcerpt occur verbatim in its supplied snippet. location and locationEvidenceExcerpt may be UNKNOWN when public location is absent.",
@@ -2470,7 +2494,7 @@ function structuredCandidateRecords(text) {
   try {
     const payload = JSON.parse(raw);
     return payload && Array.isArray(payload.candidates)
-      ? payload.candidates.filter((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate)).slice(0, 8)
+      ? payload.candidates.filter((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate)).slice(0, SEARCH_REVIEW_POOL_MAX)
       : [];
   } catch (_) {
     return [];
@@ -2488,7 +2512,7 @@ function structuredSearchCandidates(result, sources, input) {
   const locationRejectedSourceIds = new Set();
   const candidates = [];
   for (const record of records) {
-    if (candidates.length >= 8) break;
+    if (candidates.length >= SEARCH_REVIEW_POOL_MAX) break;
     const sourceId = compactText(record.sourceId, 20).toUpperCase();
     const source = sourceMap.get(sourceId);
     if (!source || seenSources.has(sourceId)) continue;
@@ -2555,6 +2579,7 @@ function structuredSearchCandidates(result, sources, input) {
       title,
       location,
       score,
+      retrievalScore: source.relevance == null ? null : Math.round(Math.max(0, Math.min(1, source.relevance)) * 100),
       coverage,
       summary: evidence,
       koreaEvidence,
@@ -2697,7 +2722,9 @@ async function handleSourcingSearch(request, env) {
       publicSiteDailyCreditLimit: publicGlobalBudget ? publicGlobalBudget.limit : null,
       perQueryMaxResults: 20,
       geminiSourceCap: 50,
+      reviewPoolMax: SEARCH_REVIEW_POOL_MAX,
       retrievalWeighting: false,
+      retrievalScoreExposed: true,
       exactRoleKeywordGate: false,
       roleFamilyGate: true,
       koreaProfessionalEvidenceGate: false,
