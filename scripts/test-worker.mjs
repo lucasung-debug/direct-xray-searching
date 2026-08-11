@@ -172,6 +172,8 @@ assert.match(home, /국적·시민권 자동 추론 안 함/);
 assert.match(home, /대상 시장·근무 조건/);
 assert.match(home, /한국 관련 직무 원문 근거를 확인/);
 assert.match(home, /한국 직무근거/);
+assert.match(home, /역할 직접근거/);
+assert.match(home, /인접 직무근거/);
 assert.match(home, /var presetCatalog = \{"cpo":/);
 assert.match(home, /function renderPresetOptions\(\)/);
 assert.match(home, /function applyPreset\(id\)/);
@@ -623,6 +625,11 @@ globalThis.fetch = async (url, init = {}) => {
         content: "Alias Candidate serves as Privacy Director and leads a PIPA privacy program for Korean business.",
         score: 0.92,
       }, {
+        title: "Adjacent Privacy Specialist - Privacy Counsel | LinkedIn",
+        url: "https://www.linkedin.com/in/adjacent-privacy-specialist",
+        content: "Adjacent Privacy Specialist leads Korea privacy governance, ISMS-P audit response, and team leadership without a public executive title.",
+        score: 0.89,
+      }, {
         title: "Duplicate profile",
         url: "https://www.linkedin.com/in/test-privacy-leader/",
         content: "Duplicate should be removed.",
@@ -1000,7 +1007,7 @@ globalThis.fetch = async (url, init = {}) => {
       assert.match(capturedGeminiPrompt, /\[연락처 제거\]/);
       if (capturedGeminiPrompt.includes("Korea-related professional capability")) {
         assert.match(capturedGeminiPrompt, /Korea-related professional capability; current residence unrestricted/);
-        assert.match(capturedGeminiPrompt, /Do not omit a role-matched record merely because Korea evidence is weak or unverified/);
+        assert.match(capturedGeminiPrompt, /Do not omit a direct-role or adjacent-professional record merely because Korea evidence is weak or unverified/);
         assert.match(capturedGeminiPrompt, /korea_evidence_level/);
         assert.match(capturedGeminiPrompt, /Singapore Candidate/);
         assert.match(capturedGeminiPrompt, /ISMS-P/);
@@ -1081,6 +1088,7 @@ assert.deepEqual(search.searchPlan, {
   retrievalScoreExposed: true,
   exactRoleKeywordGate: false,
   roleFamilyGate: true,
+  adjacentProfessionalEvidenceGate: true,
   aiCandidateGate: false,
   koreaProfessionalEvidenceGate: false,
   koreaEvidenceTiering: true,
@@ -1099,6 +1107,9 @@ assert.equal(search.aiStructuredCandidateCount, 8, "Gemini enriches the records 
 assert.equal(search.serverRecoveredCandidateCount, search.candidates.length - search.aiStructuredCandidateCount);
 assert.equal(search.searchPlan.aiCandidateGate, false);
 assert.ok(search.candidates.every((candidate) => ["gemini_structured_evidence", "server_keyword_evidence"].includes(candidate.evidenceOrigin)));
+assert.ok(search.candidates.every((candidate) => ["direct", "adjacent"].includes(candidate.roleEvidenceLevel)));
+assert.equal(search.directRoleProfileCount + search.adjacentEvidenceProfileCount, search.retrievedSourceCount);
+assert.ok(search.adjacentEvidenceProfileCount > 0, "privacy/security presets retain adjacent evidence-rich profiles for human review");
 assert.ok(search.candidates.every((candidate) => candidate.summary && candidate.scoreBreakdown.length > 0));
 assert.ok(search.candidates.every((candidate) => candidate.scoreBreakdown.reduce((sum, signal) => sum + signal.points, 0) === candidate.rawScore));
 for (let index = 1; index < search.candidates.length; index += 1) {
@@ -1117,6 +1128,7 @@ assert.deepEqual(testPrivacyLeader.scoreBreakdown.map((signal) => signal.keyword
 assert.equal(testPrivacyLeader.retrievalScore, 91);
 assert.equal(testPrivacyLeader.source, "tavily_linkedin_gemini_json_schema");
 assert.equal(testPrivacyLeader.evidenceOrigin, "gemini_structured_evidence");
+assert.equal(testPrivacyLeader.roleEvidenceLevel, "direct");
 assert.deepEqual(testPrivacyLeader.sources, [{ uri: "https://www.linkedin.com/in/test-privacy-leader", title: "Test Privacy Leader - CISO / CPO at Example Platform | LinkedIn" }]);
 assert.deepEqual(testPrivacyLeader.matchedKeywords, ["CISO", "CPO"], "only role keywords actually present in the source are attributed to a candidate");
 assert.equal(testPrivacyLeader.koreaEvidenceLevel, "strong");
@@ -1128,6 +1140,11 @@ assert.ok(candidateByName("Unknown Location Candidate"));
 const aliasCandidate = candidateByName("Alias Candidate");
 assert.deepEqual(aliasCandidate.matchedKeywords, ["Privacy Director"], "preset role-family aliases can bind a candidate even when the retrieval keyword itself is absent");
 assert.deepEqual(aliasCandidate.retrievalKeywords.slice().sort(), search.executedKeywords.slice().sort(), "query attribution is preserved separately from the role term found in the profile");
+const adjacentCandidate = candidateByName("Adjacent Privacy Specialist");
+assert.ok(adjacentCandidate, "a privacy specialist with multiple operational signals remains reviewable even without a direct role title");
+assert.equal(adjacentCandidate.roleEvidenceLevel, "adjacent");
+assert.deepEqual(adjacentCandidate.matchedKeywords, []);
+assert.match(adjacentCandidate.verify, /직접 역할어 미확인/);
 const companyFieldCandidate = candidateByName("Company Field Candidate");
 assert.equal(companyFieldCandidate.koreaEvidenceLevel, "weak");
 assert.equal(companyFieldCandidate.koreaEvidence, "Seoul");
