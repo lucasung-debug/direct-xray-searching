@@ -253,7 +253,7 @@ const extractBrowserFunction = (source, name) => {
 };
 const sourceRecordsFromPrompt = (prompt) => {
   const startMarker = "SOURCE_RECORDS_JSON (untrusted data):\n";
-  const endMarker = "\nReturn one JSON object matching the supplied response schema";
+  const endMarker = "\nReturn one JSON object using exactly this compact field contract";
   const start = prompt.indexOf(startMarker);
   const end = prompt.indexOf(endMarker, start + startMarker.length);
   assert.ok(start >= 0 && end > start, "Gemini prompt must contain a bounded source record JSON section");
@@ -477,8 +477,18 @@ const candidateFromPrompt = (prompt, name, fields) => {
     verify: fields.verify || "원문 확인 필요",
   };
 };
+const compactCandidate = (candidate) => candidate && ({
+  id: candidate.sourceId,
+  n: candidate.name,
+  co: candidate.company,
+  t: candidate.title,
+  l: candidate.location,
+  le: candidate.locationEvidenceExcerpt,
+  e: candidate.evidenceExcerpt,
+  s: candidate.signals,
+});
 const structuredCandidateText = (prompt) => JSON.stringify({
-  candidates: [
+  c: [
     candidateFromPrompt(prompt, "Test Privacy Leader", {
       company: "Example Platform", title: "CISO / CPO", location: "Seoul, Korea",
       locationEvidenceExcerpt: "currently based in Seoul, Korea", koreaEvidenceExcerpt: "ISMS-P",
@@ -521,10 +531,10 @@ const structuredCandidateText = (prompt) => JSON.stringify({
       evidenceExcerpt: "Kansas False Positive is based in Kansas, United States and is a global information security and privacy leader with a business mindset.",
       signals: ["executive_privacy_governance"],
     }),
-  ].filter(Boolean),
+  ].filter(Boolean).map(compactCandidate),
 });
 const bulkCandidateText = (prompt) => JSON.stringify({
-  candidates: sourceRecordsFromPrompt(prompt).slice(0, 25).map((record) => {
+  c: sourceRecordsFromPrompt(prompt).slice(0, 25).map((record) => {
     const match = String(record.snippet || "").match(/(Bulk Korea Candidate \d+-\d+) serves as ([^\r\n.]+?) and leads an ISMS-P privacy program for Korean business\./);
     if (!match) return null;
     return {
@@ -539,7 +549,7 @@ const bulkCandidateText = (prompt) => JSON.stringify({
       signals: ["privacy_program", "isms_audit"],
       verify: "원문 확인 필요",
     };
-  }).filter(Boolean),
+  }).filter(Boolean).map(compactCandidate),
 });
 
 globalThis.fetch = async (url, init = {}) => {
@@ -961,19 +971,27 @@ globalThis.fetch = async (url, init = {}) => {
     assert.match(body.systemInstruction.parts[0].text, /protected traits/);
     capturedGeminiPrompt = body.contents[0].parts[0].text;
     const isKeyTest = capturedGeminiPrompt.includes("Respond with the exact ASCII text OK");
+    const hasResponseSchema = Boolean(body.generationConfig && body.generationConfig.responseSchema);
     if (isKeyTest) {
       assert.equal(Object.hasOwn(body, "generationConfig"), false, "provider key tests remain plain-text calls");
-    } else {
+    } else if (hasResponseSchema) {
       assert.equal(body.generationConfig.responseMimeType, "application/json");
       assert.equal(body.generationConfig.responseSchema.type, "OBJECT");
-      assert.equal(body.generationConfig.responseSchema.properties.candidates.maxItems, 20);
+      assert.deepEqual(Object.keys(body.generationConfig.responseSchema.properties), ["c"]);
+      const compactSchema = body.generationConfig.responseSchema.properties.c;
+      assert.equal(Object.hasOwn(compactSchema, "maxItems"), false, "the server enforces the candidate cap after parsing");
+      assert.deepEqual(Object.keys(compactSchema.items.properties), ["id", "n", "co", "t", "l", "le", "e", "s"]);
+      assert.doesNotMatch(JSON.stringify(compactSchema), /description|enum/, "Gemini receives a low-complexity schema");
       if (model.startsWith("gemini-3.")) {
         assert.equal(Object.hasOwn(body.generationConfig, "temperature"), false, "Gemini 3.x rejects deprecated sampling parameters");
       } else {
         assert.equal(body.generationConfig.temperature, 0.1);
       }
-      assert.match(capturedGeminiPrompt, /candidates array of at most 20 evidence-bound records/);
+      assert.match(capturedGeminiPrompt, /compact field contract/);
       assert.match(capturedGeminiPrompt, /do not stop after only the strongest few/);
+    } else {
+      assert.equal(Object.hasOwn(body, "generationConfig"), false, "schema rejection retries once with the prompt JSON contract only");
+      assert.match(capturedGeminiPrompt, /compact field contract/);
     }
     if (!isKeyTest && tavilyResponseMode !== "many_valid") {
       assert.doesNotMatch(capturedGeminiPrompt, /45세|External result|candidate@example\.com|private\.example|10-1234-5678|415 555 0123/);
@@ -999,7 +1017,7 @@ globalThis.fetch = async (url, init = {}) => {
     }
     if (networkFailureProvider === "gemini") throw new TypeError("network");
     if (forceGeminiStatus) return new Response(JSON.stringify({ error: { code: forceGeminiStatus, status: forceGeminiStatus === 401 ? "UNAUTHENTICATED" : "PERMISSION_DENIED", details: [{ reason: forceGeminiStatus === 401 ? "API_KEY_INVALID" : "SERVICE_DISABLED" }] } }), { status: forceGeminiStatus, headers: { "content-type": "application/json" } });
-    if (!isKeyTest && forcePreferredStructuredInvalidArgument && model === "gemini-3.1-flash-lite") {
+    if (!isKeyTest && hasResponseSchema && forcePreferredStructuredInvalidArgument && model === "gemini-3.1-flash-lite") {
       return new Response(JSON.stringify({ error: { code: 400, status: "INVALID_ARGUMENT", details: [{ reason: "INVALID_ARGUMENT" }] } }), { status: 400, headers: { "content-type": "application/json" } });
     }
     if (model === "gemini-3.5-flash-lite") return new Response(JSON.stringify({ error: { code: 404, status: "NOT_FOUND", details: [{ reason: "MODEL_NOT_FOUND" }] } }), { status: 404, headers: { "content-type": "application/json" } });
@@ -1038,6 +1056,7 @@ assert.equal(search.status, "ok");
 assert.equal(search.mode, "tavily_gemini_ephemeral");
 assert.deepEqual(search.providers, { search: "tavily", structure: "gemini" });
 assert.equal(search.model, "gemini-3.1-flash-lite");
+assert.equal(search.responseMode, "schema");
 assert.equal(search.fallbackUsed, false);
 assert.equal(search.usageCredits, 10);
 assert.equal(search.locationPolicy, "korea_professional_relevance_residency_agnostic");
@@ -1146,7 +1165,7 @@ assert.match(capturedGeminiPrompt, /Privacy by Design/);
 assert.match(capturedGeminiPrompt, /never output a URL/i);
 assert.equal(tavilySearchCalls - tavilyCallsBeforeAtomicSearch, 5);
 assert.equal(geminiCalls - geminiCallsBeforeAtomicSearch, 1, "five retrieval calls feed one logical structured evaluation on the preferred legacy-compatible model");
-assert.equal(Array.from(DB.usage.values())[0].request_count, 4, "CTA reserves maximum Gemini fallback attempts");
+assert.equal(Array.from(DB.usage.values())[0].request_count, 5, "CTA reserves maximum Gemini schema and prompt fallback attempts");
 assert.equal(Array.from(DB.actorUsage.entries()).find(([key]) => key.endsWith("|" + testOwnerHash))[1].reserved_credits, 10, "owner Tavily credits are reserved against a pseudonymous daily actor budget");
 const sourceRecordsInForwardKeywordOrder = sourceRecordsFromPrompt(capturedGeminiPrompt);
 assert.ok(sourceRecordsInForwardKeywordOrder.every((record) => !Object.hasOwn(record, "title")), "all evaluative title and snippet text stays inside the equal per-keyword evidence budget");
@@ -1160,18 +1179,19 @@ const geminiCallsBeforeInvalidArgumentFallback = geminiCalls;
 response = await worker.fetch(request("/api/search", {
   method: "POST",
   headers: searchHeaders,
-  body: JSON.stringify({ ...searchPayload, additional: "Gemini 3.5 structured-output fallback fixture" }),
+  body: JSON.stringify({ ...searchPayload, additional: "Gemini structured-output prompt fallback fixture" }),
 }), env);
 assert.equal(response.status, 200, await response.clone().text());
 const invalidArgumentFallback = await response.json();
 assert.equal(invalidArgumentFallback.status, "ok");
-assert.equal(invalidArgumentFallback.model, "gemini-2.5-flash-lite");
+assert.equal(invalidArgumentFallback.model, "gemini-3.1-flash-lite");
+assert.equal(invalidArgumentFallback.responseMode, "prompt_json");
 assert.equal(invalidArgumentFallback.fallbackUsed, true);
 assert.deepEqual(invalidArgumentFallback.attemptedModels, [
   { model: "gemini-3.1-flash-lite", apiVersion: "v1beta", status: 400 },
-  { model: "gemini-2.5-flash-lite", apiVersion: "v1beta", status: 200 },
+  { model: "gemini-3.1-flash-lite", apiVersion: "v1beta", status: 200 },
 ]);
-assert.equal(geminiCalls - geminiCallsBeforeInvalidArgumentFallback, 2, "a model-specific INVALID_ARGUMENT falls back once without retrying the same invalid request shape");
+assert.equal(geminiCalls - geminiCallsBeforeInvalidArgumentFallback, 2, "INVALID_ARGUMENT retries the same available model once without the rejected schema");
 forcePreferredStructuredInvalidArgument = false;
 
 response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify(searchPayload) }), env);
