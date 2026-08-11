@@ -1618,7 +1618,7 @@ async function callGeminiModel(apiKey, model, apiVersion, prompt, responseSchema
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema,
-        temperature: 0.1,
+        ...(!model.startsWith("gemini-3.") ? { temperature: 0.1 } : {}),
       },
     } : {}),
   };
@@ -1640,7 +1640,11 @@ async function callGeminiModel(apiKey, model, apiVersion, prompt, responseSchema
 
 function geminiFallbackAllowed(result) {
   const status = result && result.response && result.response.status;
-  return status === 404;
+  if (status === 404) return true;
+  const upstreamStatus = result && result.payload && result.payload.error && result.payload.error.status;
+  return status === 400
+    && result.model === GEMINI_MODEL_PRIORITY[0]
+    && upstreamStatus === "INVALID_ARGUMENT";
 }
 
 async function callGemini(apiKey, prompt, responseSchema = null) {
