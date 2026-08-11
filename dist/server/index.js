@@ -1837,7 +1837,7 @@ function xrayQueryFor(input) {
 function tavilyQueriesFor(input) {
   if (usesKoreaProfessionalContext(input)) {
     return searchKeywordBatchFor(input).map((keyword) => compactText(
-      'Find public LinkedIn people profiles whose own role is "' + safeSearchKeyword(keyword) + '" and whose professional work relates to Korea privacy, information security, PIPA, ISMS-P, or CPPG.',
+      '"' + safeSearchKeyword(keyword) + '" LinkedIn people profile ("개인정보보호" OR "정보보호" OR "정보보안" OR "ISMS-P" OR CPPG OR PIPA OR "Korea privacy" OR "Korea security")',
       300,
     ));
   }
@@ -1990,8 +1990,31 @@ function sourceRoleFamilyTerms(title, content, input) {
 }
 
 const NON_CANDIDATE_ROLE_CONTEXT_PATTERN = /(?:open\s+position|job\s+(?:opening|posting)|we(?:'re|\s+are)\s+hiring|hiring\s+for|recruiting\s+for|채용|모집|구인|지원\s*바랍니다|올린\s*사람|추천한\s*사람|공유함|퍼옴|reposted|shared\s+by|recommended\s+by)/i;
+const CPO_NON_PRIVACY_ROLE_PATTERN = /(?:chief\s+(?:product|people|procurement|process|performance|partnerships?|portfolio)\s+officer|(?:product|people|procurement|process|performance|partnerships?|portfolio)\s+(?:chief|cpo)|\bCPO\b\s*[-–—|·,:/]?\s*(?:product|people|procurement|process|performance|partnerships?|portfolio))/i;
+const CPO_PRIVACY_CONTEXT_PATTERN = /(?:chief\s+privacy\s+officer|privacy|data\s+protection|personal\s+information|개인정보|정보\s*(?:보호|보안)|\bPIPA\b|\bISMS(?:-P)?\b|\bCISO\b)/i;
+const CPO_ASSOCIATION_CONTEXT_PATTERN = /(?:CPO\s*(?:forum|council|association)|CPO포럼|개인정보보호책임자협의회)/i;
 
 function sourceContainsCandidateRoleKeyword(title, content, keyword) {
+  const normalizedKeyword = normalizedEvidenceText(safeSearchKeyword(keyword));
+  if (normalizedKeyword === "cpo") {
+    const titleText = String(title || "");
+    const combined = titleText + " " + String(content || "");
+    if (CPO_NON_PRIVACY_ROLE_PATTERN.test(titleText)) return false;
+    if (/chief\s+privacy\s+officer/i.test(titleText) && !NON_CANDIDATE_ROLE_CONTEXT_PATTERN.test(titleText)) return true;
+    if (sourceContainsSpecificSearchKeyword(titleText, keyword)
+      && !NON_CANDIDATE_ROLE_CONTEXT_PATTERN.test(titleText)
+      && !CPO_ASSOCIATION_CONTEXT_PATTERN.test(titleText)
+      && CPO_PRIVACY_CONTEXT_PATTERN.test(combined)) return true;
+    const cpoSegments = String(content || "").split(/(?:\n+|\s*\[\.\.\.\]\s*|(?<=[.!?])\s+)/).map((segment) => compactText(segment, 900)).filter(Boolean);
+    return cpoSegments.some((segment, index) => {
+      if (!sourceContainsSpecificSearchKeyword(segment, keyword)
+        || NON_CANDIDATE_ROLE_CONTEXT_PATTERN.test(segment)
+        || CPO_NON_PRIVACY_ROLE_PATTERN.test(segment)
+        || CPO_ASSOCIATION_CONTEXT_PATTERN.test(segment)
+        || !CPO_PRIVACY_CONTEXT_PATTERN.test(segment)) return false;
+      return index < 3 || /(?:serves?\s+as|works?\s+as|experience\s+as|role\s+as|leads?|heads?|oversees?|responsible\s+for|career|경력|역할|수행|총괄|담당|책임자)/i.test(segment);
+    });
+  }
   if (sourceContainsSpecificSearchKeyword(title, keyword) && !NON_CANDIDATE_ROLE_CONTEXT_PATTERN.test(title)) return true;
   if (!sourceContainsSpecificSearchKeyword(content, keyword)) return false;
   const segments = String(content || "").split(/(?:\n+|\s*\[\.\.\.\]\s*|(?<=[.!?])\s+)/).map((segment) => compactText(segment, 900)).filter(Boolean);

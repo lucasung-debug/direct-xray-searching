@@ -580,11 +580,11 @@ globalThis.fetch = async (url, init = {}) => {
     assert.equal(capturedTavilyBody.auto_parameters, false);
     assert.equal(capturedTavilyBody.max_results, 20);
     assert.ok(capturedTavilyBody.query.length <= 300);
-    const isKoreaTalentQuery = /whose own role is "[^"]+".*Korea privacy.*PIPA.*ISMS-P.*CPPG/i.test(capturedTavilyBody.query);
+    const isKoreaTalentQuery = /^"[^"]+" LinkedIn people profile \("개인정보보호" OR "정보보호" OR "정보보안" OR "ISMS-P" OR CPPG OR PIPA OR "Korea privacy" OR "Korea security"\)$/i.test(capturedTavilyBody.query);
     if (isKoreaTalentQuery) {
       assert.equal(Object.hasOwn(capturedTavilyBody, "country"), false, "the residency-agnostic preset searches globally and relies on professional evidence tiers");
-      assert.match(capturedTavilyBody.query, /^Find public LinkedIn people profiles whose own role is "[^"]+"/i);
-      assert.match(capturedTavilyBody.query, /professional work relates to Korea privacy, information security, PIPA, ISMS-P, or CPPG/i);
+      assert.match(capturedTavilyBody.query, /^"[^"]+" LinkedIn people profile \(/i);
+      assert.match(capturedTavilyBody.query, /"개인정보보호" OR "정보보호".*PIPA.*"Korea privacy" OR "Korea security"/i);
     } else {
       assert.equal(Object.hasOwn(capturedTavilyBody, "country"), false, "custom presets do not receive an implicit country boost");
       assert.match(capturedTavilyBody.query, /LinkedIn profile$/);
@@ -598,7 +598,7 @@ globalThis.fetch = async (url, init = {}) => {
     if (tavilyResponseMode === "non_json") return new Response("not json", { status: 200, headers: { "content-type": "text/plain" } });
     if (tavilyResponseMode === "many_valid") {
       const batch = tavilySearchCalls;
-      const roleKeyword = capturedTavilyBody.query.match(/whose own role is "([^"]+)"/i)?.[1] || capturedTavilyBody.query.match(/^"([^"]+)"/)?.[1] || "CPO";
+      const roleKeyword = capturedTavilyBody.query.match(/^"([^"]+)"/)?.[1] || "CPO";
       return new Response(JSON.stringify({
         usage: { credits: 2 },
         results: Array.from({ length: 10 }, (_, index) => ({
@@ -629,6 +629,11 @@ globalThis.fetch = async (url, init = {}) => {
         url: "https://www.linkedin.com/in/adjacent-privacy-specialist",
         content: "Adjacent Privacy Specialist leads Korea privacy governance, ISMS-P audit response, and team leadership without a public executive title.",
         score: 0.89,
+      }, {
+        title: "Product Executive - CPO, Chief Product Officer | LinkedIn",
+        url: "https://www.linkedin.com/in/product-executive-cpo",
+        content: "Product Executive owns the Korea market product roadmap, portfolio strategy, and product operations.",
+        score: 0.98,
       }, {
         title: "Duplicate profile",
         url: "https://www.linkedin.com/in/test-privacy-leader/",
@@ -1187,6 +1192,7 @@ assert.ok(search.candidates.some((candidate) => candidate.name === "Singapore Ca
 assert.match(JSON.stringify(search), /Kansas False Positive/, "a generic overseas CPO remains reviewable but is explicitly marked unverified and score-capped");
 assert.doesNotMatch(JSON.stringify(search), /Recruiter Profile/, "a role keyword found only inside a recruiter job post must not be attributed to the profile owner");
 assert.doesNotMatch(JSON.stringify(search), /Recruiter Title Job Post|recruiter-title-job-post/, "a job-post role keyword in a search-result title must not be attributed to the profile owner");
+assert.doesNotMatch(JSON.stringify(search), /Product Executive|product-executive-cpo/, "ambiguous CPO abbreviations for product roles are not treated as Chief Privacy Officer evidence");
 assert.match(search.text, /현재 거주지는 필터링하지 않았으며 국적·시민권은 추론하지 않았습니다/);
 assert.doesNotMatch(JSON.stringify(search.candidates), /Prompt Injection Candidate/, "unbound model signals cannot create a scored candidate");
 assert.match(JSON.stringify(search.candidates), /Unknown Location Candidate/, "UNKNOWN public location remains reviewable when residence is not a gate");
@@ -1343,7 +1349,7 @@ response = await worker.fetch(request("/api/search", {
 assert.equal(response.status, 200);
 const cpoLocationOverride = await response.json();
 assert.equal(cpoLocationOverride.locationPolicy, "korea_professional_relevance_residency_agnostic", "the CPO preset owns a Korea professional-context policy without a residence gate");
-assert.match(capturedTavilyBody.query, /^Find public LinkedIn people profiles whose own role is "정보보호실장"/);
+assert.match(capturedTavilyBody.query, /^"정보보호실장" LinkedIn people profile/);
 assert.equal(Object.hasOwn(capturedTavilyBody, "country"), false, "the CPO preset remains globally retrievable when presentation text is edited");
 assert.doesNotMatch(capturedTavilyBody.query, /currently based in South Korea/i);
 assert.doesNotMatch(capturedTavilyBody.query, /United States/i, "editable presentation text cannot turn the CPO preset into a residence filter");
