@@ -604,30 +604,32 @@ const SOURCING_HTML = String.raw`<!doctype html>
     .hero{padding:28px;background:linear-gradient(135deg,#172a4d 0%,#24487e 55%,#225eea 135%);color:#fff;overflow:hidden;position:relative}
     .hero:after{content:"";position:absolute;width:340px;height:340px;border-radius:50%;right:-140px;top:-180px;border:1px solid rgba(255,255,255,.18)}
     .hero h2{margin:10px 0 9px;font-size:36px;line-height:1.12}.hero p{max-width:750px;color:#dce7ff;line-height:1.65}
-    .flow{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:22px}.flow span{padding:10px 8px;border:1px solid rgba(255,255,255,.20);border-radius:10px;background:rgba(255,255,255,.08);font-size:11px;text-align:center}.flow b{display:block;margin-bottom:4px;color:#9fc1ff}
+    .flow{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:22px}.flow span{padding:10px 8px;border:1px solid rgba(255,255,255,.20);border-radius:10px;background:rgba(255,255,255,.08);font-size:11px;text-align:center}.flow b{display:block;margin-bottom:4px;color:#9fc1ff}
     .parity{padding:18px 20px}.parity summary{cursor:pointer;display:flex;gap:10px;align-items:center;justify-content:space-between;font-weight:900;list-style:none}.parity summary::-webkit-details-marker{display:none}
     .parity-count{font-size:11px;border-radius:999px;padding:7px 10px;background:var(--soft);color:var(--muted)}
     .parity-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px}
     .parity-item{display:grid;grid-template-columns:58px 1fr auto;gap:8px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:11px}.parity-item b{font-size:10px;color:var(--muted)}
     .state{border-radius:999px;padding:5px 7px;font-size:9px;font-weight:900;white-space:nowrap}.state.same,.state.expanded{background:var(--green-soft);color:var(--green)}.state.partial,.state.ready,.state.separated{background:var(--amber-soft);color:var(--amber)}.state.missing{background:var(--red-soft);color:var(--red)}
-    .search-output{padding:22px}.search-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.search-head h2{margin:4px 0 5px;font-size:20px}
+    .search-output{padding:17px 20px}.search-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.search-head h2{margin:4px 0 4px;font-size:18px}.search-head p{margin-bottom:0;font-size:11px}
     .ephemeral{display:inline-flex;padding:6px 9px;border-radius:999px;background:var(--amber-soft);color:var(--amber);font-size:10px;font-weight:900}
-    .search-progress{margin-top:18px;padding:18px;border:1px solid #d6deeb;border-radius:15px;background:linear-gradient(135deg,#fbfcff,#f4f7fc);overflow:hidden}
-    .search-progress-intro{display:flex;align-items:center;gap:13px}.search-status-icon{width:42px;height:42px;flex:0 0 42px;border-radius:14px;display:grid;place-items:center;background:var(--blue-soft);color:var(--blue);font-size:19px;font-weight:950}.search-progress-intro strong{display:block;font-size:14px}.search-progress-intro span{display:block;margin-top:4px;color:var(--muted);font-size:11px;line-height:1.45}
+    .search-progress{margin-top:11px;padding:11px 13px;border:1px solid #d6deeb;border-radius:12px;background:linear-gradient(135deg,#fbfcff,#f4f7fc);overflow:hidden}
+    .search-progress-intro{display:flex;align-items:center;gap:10px}.search-status-icon{width:34px;height:34px;flex:0 0 34px;border-radius:10px;display:grid;place-items:center;background:var(--blue-soft);color:var(--blue);font-size:16px;font-weight:950}.search-progress-intro strong{display:block;font-size:12px}.search-progress-intro span{display:block;margin-top:2px;color:var(--muted);font-size:10px;line-height:1.4}
     .search-progress[data-state="loading"] .search-status-icon{font-size:0;position:relative}.search-progress[data-state="loading"] .search-status-icon:after{content:"";width:17px;height:17px;border:2px solid #b9caff;border-top-color:var(--blue);border-radius:50%;animation:search-spin .8s linear infinite}.search-progress[data-state="success"] .search-status-icon{background:var(--green-soft);color:var(--green)}.search-progress[data-state="empty"] .search-status-icon{background:var(--amber-soft);color:var(--amber)}.search-progress[data-state="error"] .search-status-icon{background:var(--red-soft);color:var(--red)}
-    .search-track{height:7px;margin-top:17px;border-radius:999px;background:#e5eaf2;overflow:hidden}.search-progress-bar{position:relative;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#225eea,#57a0ff);transition:width .7s ease}.search-progress[data-state="loading"] .search-progress-bar:after{content:"";position:absolute;inset:0;width:45%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.72),transparent);animation:search-shimmer 1.25s ease-in-out infinite}
-    .search-flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:15px}.search-step{position:relative;display:flex;align-items:center;gap:7px;min-width:0;color:#98a2b3;font-size:10px;font-weight:800}.search-step i{width:20px;height:20px;flex:0 0 20px;border-radius:50%;display:grid;place-items:center;background:#e9edf4;color:#7f899a;font-style:normal;font-size:9px}.search-step b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.search-step.complete{color:var(--green)}.search-step.complete i{background:var(--green-soft);color:var(--green)}.search-step.active{color:var(--blue)}.search-step.active i{background:var(--blue);color:#fff;box-shadow:0 0 0 5px rgba(34,94,234,.10)}.search-step.error{color:var(--red)}.search-step.error i{background:var(--red-soft);color:var(--red)}
-    .search-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}.search-stat{padding:12px;border:1px solid var(--line);border-radius:11px;background:#fff}.search-stat strong{display:block;font-size:18px;color:var(--navy)}.search-stat span{display:block;margin-top:4px;color:var(--muted);font-size:10px;font-weight:750}
-    .search-message{margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--soft);white-space:pre-wrap;line-height:1.6;font-size:12px}.fallback{display:inline-block;margin-top:12px;color:var(--blue);font-weight:850;font-size:12px}
+    .search-track{height:5px;margin-top:9px;border-radius:999px;background:#e5eaf2;overflow:hidden}.search-progress-bar{position:relative;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#225eea,#57a0ff);transition:width .7s ease}.search-progress[data-state="loading"] .search-progress-bar:after{content:"";position:absolute;inset:0;width:45%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.72),transparent);animation:search-shimmer 1.25s ease-in-out infinite}
+    .search-flow{display:none}.search-step{position:relative;align-items:center;gap:7px;min-width:0;color:#98a2b3;font-size:10px;font-weight:800}.search-step i{width:20px;height:20px;flex:0 0 20px;border-radius:50%;display:grid;place-items:center;background:#e9edf4;color:#7f899a;font-style:normal;font-size:9px}.search-step b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.search-step.complete{color:var(--green)}.search-step.complete i{background:var(--green-soft);color:var(--green)}.search-step.active{color:var(--blue)}.search-step.active i{background:var(--blue);color:#fff}.search-step.error{color:var(--red)}.search-step.error i{background:var(--red-soft);color:var(--red)}
+    .search-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}.search-stat{padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:#fff}.search-stat strong{display:inline;font-size:14px;color:var(--navy)}.search-stat span{margin-left:5px;color:var(--muted);font-size:9px;font-weight:750}
+    .search-message{margin-top:8px;padding:9px 11px;border-radius:9px;background:var(--soft);white-space:pre-wrap;line-height:1.45;font-size:10px}.fallback{display:inline-block;margin-top:8px;color:var(--blue);font-weight:850;font-size:11px}
     .search-output.masked-output .search-summary,.search-output.masked-output .search-message,.search-output.masked-output .fallback{display:none!important}
     @keyframes search-spin{to{transform:rotate(360deg)}}@keyframes search-shimmer{from{transform:translateX(-130%)}to{transform:translateX(310%)}}
     .pool{padding:22px}.pool-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.pool-head h2{margin:4px 0 5px}.pool-tools{display:grid;justify-items:end;gap:9px}.pool-sort{display:flex;align-items:center;gap:7px}.pool-sort label{color:var(--muted);font-size:10px;font-weight:850}.pool-sort select{min-width:190px;border:1px solid #cbd3df;border-radius:9px;background:#fff;color:var(--ink);padding:8px 10px;outline:none;font-size:11px;font-weight:750}.pool-sort select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(34,94,234,.12)}
     .pills{display:flex;gap:6px;flex-wrap:wrap}.pill{display:inline-flex;border-radius:999px;padding:6px 8px;background:var(--soft);color:var(--muted);font-size:10px;font-weight:800}.pill.blue{background:var(--blue-soft);color:var(--blue)}.pill.green{background:var(--green-soft);color:var(--green)}.pill.amber{background:var(--amber-soft);color:var(--amber)}
-    .cards{display:grid;gap:10px;margin-top:17px}.empty-pool{padding:34px 20px;border:1px dashed #b9c7dc;border-radius:14px;background:#f8faff;text-align:center}.empty-pool strong{display:block;font-size:16px}.empty-pool span{display:block;margin-top:7px;color:var(--muted);font-size:12px;line-height:1.6}.candidate{position:relative;display:grid;grid-template-columns:68px minmax(0,1fr);gap:14px;padding:16px;border:1px solid var(--line);border-radius:14px;background:#fff}.rank{position:absolute;top:10px;right:12px;color:#9aa4b5;font-size:10px;font-weight:900}
-    .score{width:64px;height:64px;border-radius:18px;background:var(--navy);color:#fff;display:grid;place-items:center;text-align:center}.score strong{display:block;font-size:22px}.score span{font-size:8px;color:#bcd0f8}
-    .candidate h3{margin:2px 0 5px;font-size:17px}.role{font-size:12px;color:var(--muted)}.summary{margin:9px 0 8px;font-size:12px;line-height:1.55}
-    .tags{display:flex;gap:5px;flex-wrap:wrap}.tag{padding:5px 7px;border-radius:7px;background:var(--soft);font-size:9px;font-weight:800}.tag.strong{background:var(--blue-soft);color:var(--blue)}
-    .card-foot{grid-column:2;display:flex;justify-content:space-between;align-items:center;gap:8px}.profile{font-size:11px;color:var(--blue);font-weight:900;text-decoration:none}
+    .pool-principle{display:flex;align-items:flex-start;gap:10px;margin-top:14px;padding:11px 13px;border-radius:11px;background:var(--blue-soft);color:#29466f;font-size:11px;line-height:1.5}.pool-principle strong{flex:0 0 auto;color:var(--blue)}
+    .cards{display:grid;gap:12px;margin-top:14px}.empty-pool{padding:34px 20px;border:1px dashed #b9c7dc;border-radius:14px;background:#f8faff;text-align:center}.empty-pool strong{display:block;font-size:16px}.empty-pool span{display:block;margin-top:7px;color:var(--muted);font-size:12px;line-height:1.6}.candidate{position:relative;display:grid;grid-template-columns:78px minmax(0,1fr);gap:14px;padding:18px;border:1px solid var(--line);border-radius:14px;background:#fff}.rank{position:absolute;top:10px;right:12px;color:#9aa4b5;font-size:10px;font-weight:900}
+    .score{width:74px;height:74px;border-radius:18px;background:var(--navy);color:#fff;display:grid;place-items:center;text-align:center}.score strong{display:block;font-size:24px;line-height:1}.score span{display:block;margin-top:5px;font-size:8px;line-height:1.15;color:#bcd0f8}
+    .candidate h3{margin:2px 0 5px;font-size:17px}.role{font-size:12px;color:var(--muted)}
+    .review-reason{margin-top:12px;padding:13px;border:1px solid #d8e3f7;border-radius:12px;background:#f7faff}.reason-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.reason-head strong{font-size:12px}.reason-head span{color:var(--muted);font-size:9px;text-align:right}.signal-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.signal-chip{display:flex;align-items:center;gap:9px;min-width:150px;padding:8px 9px;border:1px solid #cddcff;border-radius:9px;background:#fff}.signal-chip>span{display:grid;gap:2px}.signal-chip b{font-size:10px}.signal-chip small{color:var(--muted);font-size:8px}.signal-chip em{margin-left:auto;color:var(--blue);font-size:12px;font-style:normal;font-weight:950}.keyword-lines{display:grid;gap:5px;margin-top:10px;padding-top:9px;border-top:1px solid #dbe5f6}.keyword-line{display:flex;align-items:flex-start;gap:8px;font-size:10px;line-height:1.45}.keyword-line b{flex:0 0 88px;color:#53627a}.keyword-line span{color:var(--ink)}
+    .evidence-box{margin-top:10px;padding:11px 12px;border-left:3px solid var(--blue);border-radius:0 9px 9px 0;background:var(--soft)}.evidence-box strong{font-size:10px;color:#53627a}.evidence-box p{margin:5px 0 0;font-size:11px;line-height:1.55}
+    .card-foot{grid-column:2;display:flex;justify-content:space-between;align-items:center;gap:8px}.profile{font-size:11px;color:var(--blue);font-weight:900;text-decoration:none}.verify-details{grid-column:2;color:var(--muted);font-size:9px}.verify-details summary{cursor:pointer;font-weight:850}.verify-details p{margin:6px 0 0;padding:9px 10px;border-radius:8px;background:var(--amber-soft);line-height:1.5;color:#77501d}
     .pool-actions{display:flex;justify-content:center;gap:8px;margin-top:16px;flex-wrap:wrap}
     .manual{margin-top:16px;border-top:1px solid var(--line);padding-top:16px}.manual summary{cursor:pointer;font-size:12px;font-weight:900}.manual-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}.manual-grid .field{margin:0}.manual-grid .full{grid-column:1/-1}.check{display:flex;align-items:flex-start;gap:8px;font-size:11px;color:var(--muted);line-height:1.45}
     .pool.masked-pool .manual{display:none!important}
@@ -637,7 +639,7 @@ const SOURCING_HTML = String.raw`<!doctype html>
     .toast{position:fixed;right:22px;bottom:22px;z-index:60;max-width:380px;padding:12px 15px;border-radius:11px;background:#172033;color:#fff;box-shadow:var(--shadow);font-size:12px;opacity:0;transform:translateY(10px);pointer-events:none;transition:.2s}.toast.show{opacity:1;transform:none}
     .hidden{display:none!important}
     @media(max-width:980px){.layout{grid-template-columns:1fr}.sidebar{position:static}.flow{grid-template-columns:repeat(3,1fr)}.parity-grid{grid-template-columns:1fr}}
-    @media(max-width:640px){.topbar{height:auto;min-height:68px;padding:11px 14px}.brand>span:not(.brand-mark){display:none}.brand .brand-mark{display:grid}.top-actions{gap:4px}.top-actions .btn{padding:8px 9px;font-size:11px}.top-actions .label{display:none}.layout{width:min(100% - 18px,1540px);margin-top:10px}.hero,.sidebar,.pool,.search-output{padding:18px}.hero h2{font-size:28px}.flow{grid-template-columns:repeat(2,1fr)}.search-flow{grid-template-columns:1fr}.search-step b{white-space:normal}.search-summary{grid-template-columns:repeat(2,1fr)}.pool-head{display:grid}.pool-tools{justify-items:stretch}.pool-sort{justify-content:space-between}.pool-sort select{min-width:0;flex:1}.manual-grid{grid-template-columns:1fr}.manual-grid .full{grid-column:auto}.candidate{grid-template-columns:58px minmax(0,1fr);padding:13px}.score{width:54px;height:54px;border-radius:15px}.card-foot{grid-column:1/-1}.parity-item{grid-template-columns:52px 1fr}}
+    @media(max-width:640px){.topbar{height:auto;min-height:68px;padding:11px 14px}.brand>span:not(.brand-mark){display:none}.brand .brand-mark{display:grid}.top-actions{gap:4px}.top-actions .btn{padding:8px 9px;font-size:11px}.top-actions .label{display:none}.layout{width:min(100% - 18px,1540px);margin-top:10px}.hero,.sidebar,.pool{padding:18px}.search-output{padding:14px}.hero h2{font-size:28px}.flow{grid-template-columns:repeat(2,1fr)}.search-summary{grid-template-columns:repeat(2,1fr)}.search-stat strong{display:block}.search-stat span{display:block;margin:2px 0 0}.pool-head{display:grid}.pool-tools{justify-items:stretch}.pool-sort{justify-content:space-between}.pool-sort select{min-width:0;flex:1}.pool-principle{display:grid}.manual-grid{grid-template-columns:1fr}.manual-grid .full{grid-column:auto}.candidate{grid-template-columns:1fr;padding:14px}.score{width:auto;height:auto;justify-self:start;padding:8px 11px;border-radius:11px}.score>div{display:flex;align-items:baseline;gap:5px}.score span{margin-top:0}.reason-head{display:grid}.reason-head span{text-align:left}.signal-chip{min-width:0;width:100%}.keyword-line{display:grid;gap:3px}.keyword-line b{flex:auto}.card-foot,.verify-details{grid-column:1/-1}.card-foot{align-items:flex-start}.parity-item{grid-template-columns:52px 1fr}}
     @media(prefers-reduced-motion:reduce){.search-progress-bar{transition:none}.search-progress[data-state="loading"] .search-status-icon:after,.search-progress[data-state="loading"] .search-progress-bar:after{animation:none}}
   </style>
 </head>
@@ -655,10 +657,10 @@ const SOURCING_HTML = String.raw`<!doctype html>
     <aside class="panel sidebar">
       <div class="eyebrow">Step 1 · Input</div>
       <h1>검색 조건</h1>
-      <p class="muted">키워드는 하나씩 검색하고, 필수·우대 조건은 마지막 AI 평가에만 사용합니다.</p>
+      <p class="muted">키워드는 하나씩 검색하고, 필수·우대 조건은 후보별 검증 체크를 만드는 참고로만 사용합니다.</p>
       <div class="runtime">
         <strong>실행 방식</strong><br>
-        예약 실행 없음 · 버튼을 누를 때만 Tavily 공개 웹 검색 · Gemini는 합쳐진 결과를 마지막에 한 번 평가<br>
+        예약 실행 없음 · 버튼을 누를 때만 Tavily 공개 웹 검색 · Gemini는 합쳐진 공개 근거에서 역할어·직무 신호를 한 번 구조화<br>
         CPO 프리셋은 해외 거주자도 검색 · 현재 거주지로 제외하지 않음 · 국적·시민권 자동 추론 안 함<br>
         공개 링크 · 방문자별·사이트 전체 일일 검색 한도 적용
         <div class="status-row"><span class="dot" id="api-dot"></span><span id="api-status">BYOK 상태 확인 중</span></div>
@@ -671,11 +673,11 @@ CPO
 CISO
 Head of Privacy
 정보보호실장</textarea><p class="muted" style="margin:6px 0 0;font-size:10px;line-height:1.5">한 줄마다 독립 검색합니다. 한 번 누르면 최대 5개를 모두 검색한 뒤 한 번만 통합 평가합니다.</p></div>
-      <div class="field"><label for="required">필수 조건 · 최종 평가용</label><textarea id="required" maxlength="1200">정보보호·개인정보보호 경력 10년 이상
+      <div class="field"><label for="required">필수 조건 · 검증 체크 참고</label><textarea id="required" maxlength="1200">정보보호·개인정보보호 경력 10년 이상
 팀장급 이상 조직 리딩
 AWS 등 클라우드 운영 또는 보안 거버넌스
 ISMS 인증·심사 대응</textarea></div>
-      <div class="field"><label for="preferred">우대 조건 · 최종 평가용</label><textarea id="preferred" maxlength="1200">CPO/CISO 또는 이에 준하는 역할
+      <div class="field"><label for="preferred">우대 조건 · 검증 체크 참고</label><textarea id="preferred" maxlength="1200">CPO/CISO 또는 이에 준하는 역할
 플랫폼·IT·SaaS·콘텐츠 기업
 AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
       <div class="field"><label for="additional">평가 참고</label><textarea id="additional" maxlength="800" placeholder="예: 글로벌 데이터 이전 또는 Privacy by Design 경험을 최종 평가에 반영"></textarea></div>
@@ -690,10 +692,10 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
 
     <section class="content">
       <section class="panel hero">
-        <div class="eyebrow" style="color:#9fc1ff">Step 2–6 · Search → Review → Merge</div>
-        <h2>AI는 찾고,<br>사람은 원문을 검증합니다.</h2>
-        <p>입력한 키워드를 한 개씩 독립 검색해 URL 기준으로 합치고 중복을 제거합니다. 검색 회수 단계에는 가중치를 쓰지 않으며, 합쳐진 공개 근거를 Gemini가 필수·우대 기준으로 마지막에 한 번 평가합니다.</p>
-        <div class="flow"><span><b>1</b>키워드 입력</span><span><b>2</b>개별 검색</span><span><b>3</b>합집합·중복 제거</span><span><b>4</b>AI 통합 평가</span><span><b>5</b>사람 검증</span><span><b>6</b>전체 재정렬</span></div>
+        <div class="eyebrow" style="color:#9fc1ff">Keyword evidence → Reference score → Human review</div>
+        <h2>AI 점수는 정렬하고,<br>사람은 가능성을 판단합니다.</h2>
+        <p>점수는 합격 판정이 아닙니다. 공개 원문에서 확인된 역할어와 직무 신호에 정해진 배점을 더한 참고값입니다. 낮은 점수 후보도 풀에 남기고, 각 카드에서 어떤 검색어로 발견됐는지·어떤 원문 키워드가 몇 점에 반영됐는지 확인할 수 있습니다.</p>
+        <div class="flow"><span><b>1</b>검색어로 후보 발견</span><span><b>2</b>원문 키워드·신호 확인</span><span><b>3</b>AI 참고점수로 정렬</span><span><b>4</b>사람이 원문 판단</span></div>
       </section>
 
       <details class="panel parity hidden" id="parity-panel">
@@ -703,7 +705,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
 
       <section class="panel search-output" id="search-output">
         <div class="search-head">
-          <div><div class="eyebrow">Live search result</div><h2 id="search-title">키워드 검색 대기</h2><p class="muted" id="search-subtitle">한 줄씩 독립 검색 → URL 합집합·중복 제거 → Gemini 최종 평가 → 후보 풀 자동 병합 순서로 실행합니다.</p></div>
+          <div><div class="eyebrow">Search status</div><h2 id="search-title">키워드 검색 대기</h2><p class="muted" id="search-subtitle">여기에는 상태만 표시합니다. 핵심 결과는 아래 후보 카드의 키워드·배점·원문 근거입니다.</p></div>
           <span class="ephemeral">후보 결과 저장 안 함 · EPHEMERAL</span>
         </div>
         <div class="search-progress" id="search-progress" data-state="idle" aria-live="polite" aria-busy="false">
@@ -712,18 +714,19 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
           <div class="search-flow" id="search-flow"><span class="search-step" data-search-step><i>1</i><b>검색 요청</b></span><span class="search-step" data-search-step><i>2</i><b>프로필 탐색</b></span><span class="search-step" data-search-step><i>3</i><b>직무 근거 확인</b></span><span class="search-step" data-search-step><i>4</i><b>AI 통합 평가</b></span><span class="search-step" data-search-step><i>5</i><b>후보 정리</b></span></div>
         </div>
         <div class="search-summary hidden" id="search-summary"><div class="search-stat"><strong id="summary-collected">0</strong><span>공개 프로필</span></div><div class="search-stat"><strong id="summary-role">0</strong><span>역할 근거 통과</span></div><div class="search-stat"><strong id="summary-evidence">0</strong><span>직무 근거 통과</span></div><div class="search-stat"><strong id="summary-final">0</strong><span>최종 검토 후보</span></div></div>
-        <div class="search-message" id="search-message">검색을 실행하면 진행 상태와 완료 요약만 표시됩니다.</div>
+        <div class="search-message" id="search-message">검색 후에는 후보별 ‘확인해볼 이유’를 먼저 보세요.</div>
         <a class="fallback hidden" id="fallback-link" target="_blank" rel="noopener noreferrer">Google X-ray 검색으로 열기 ↗</a>
       </section>
 
       <section class="panel pool">
         <div class="pool-head">
-          <div><div class="eyebrow">Review candidate pool</div><h2 id="pool-title">검토 후보 0명</h2><p class="muted" id="pool-subtitle">검색 1회 최대 20명 · 현재 탭 전용 · 새로고침/닫기 시 삭제</p></div>
+          <div><div class="eyebrow">Review candidate pool</div><h2 id="pool-title">검토 후보 0명</h2><p class="muted" id="pool-subtitle">낮은 점수도 제외하지 않음 · 검색 1회 최대 20명 · 현재 탭 전용</p></div>
           <div class="pool-tools">
-            <div class="pool-sort"><label for="pool-sort">후보 정렬</label><select id="pool-sort"><option value="score_desc">평가 점수 높은순</option><option value="evidence_desc">한국 직무근거 우선</option><option value="retrieval_desc">Tavily 관련도순 · 보조</option></select></div>
-            <div class="pills"><span class="pill green">사람 검토 필수</span><span class="pill amber">합격확률 아님</span><span class="pill blue">1회 최대 20명</span><span class="pill blue" id="manual-count">검색 추가 0 · 수동 0</span></div>
+            <div class="pool-sort"><label for="pool-sort">후보 정렬</label><select id="pool-sort"><option value="score_desc">AI 참고점수 높은순</option><option value="evidence_desc">한국 직무근거 우선</option><option value="retrieval_desc">Tavily 관련도순 · 보조</option></select></div>
+            <div class="pills"><span class="pill green">사람 판단 우선</span><span class="pill amber">합격확률 아님</span><span class="pill blue">낮은 점수도 유지</span><span class="pill blue" id="manual-count">검색 추가 0 · 수동 0</span></div>
           </div>
         </div>
+        <div class="pool-principle"><strong>점수 읽는 법</strong><span>AI 참고점수는 공개 원문에서 확인된 직무 키워드·신호의 배점 합계이며 후보 정렬에만 사용합니다. 카드의 실제 매칭 문구와 원문 문장을 보고 사람이 확인할 가치가 있는지 판단하세요.</span></div>
         <div class="cards" id="candidate-grid"></div>
         <div class="pool-actions">
           <button class="btn primary" id="more-button" type="button">키워드 바꿔 더 찾기</button>
@@ -904,25 +907,30 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
           var name=masked?"후보 "+String(index+1).padStart(2,"0"):item.name;
           var role=masked?"회사·역할·지역 가림":item.title+" · "+item.company+" · "+item.location;
           var summary=masked?"직무 관련 근거 가림":item.summary;
-          var tags=masked?"<span class='tag'>평가 신호 가림</span>":(item.tags||[]).map(function(tag,i){return "<span class='tag "+(i<2?"strong":"")+"'>"+esc(tag)+"</span>"}).join("");
           var link=masked?"<span class='pill'>프로필 가림</span>":"<a class='profile' href='"+esc(item.url)+"' target='_blank' rel='noopener noreferrer'>공개 원문 ↗</a>";
           var sourceLinks=masked?"":(item.sources||[]).slice(0,3).map(function(source,i){var href=safeHttpUrl(source&&source.uri);return href?"<a class='pill blue' href='"+esc(href)+"' target='_blank' rel='noopener noreferrer'>근거 "+(i+1)+" ↗</a>":""}).join("");
           var matchedKeywords=Array.isArray(item.matchedKeywords)?item.matchedKeywords.slice(0,5):[];
-          var keywordPill=masked?"":(matchedKeywords.length?"<span class='pill blue'>역할 일치 · "+esc(matchedKeywords.join(" · "))+"</span>":"");
+          var retrievalKeywords=Array.isArray(item.retrievalKeywords)?item.retrievalKeywords.slice(0,5):[];
+          var scoreBreakdown=Array.isArray(item.scoreBreakdown)?item.scoreBreakdown.slice(0,8):[];
+          var signalChips=masked?"<span class='signal-chip'><span><b>점수 근거 가림</b></span></span>":scoreBreakdown.map(function(signal){var keyword=String(signal&&signal.keyword||"");var points=Math.max(0,Math.min(100,Number(signal&&signal.points)||0));return "<span class='signal-chip'><span><b>"+esc(signal&&signal.label||"직무 신호")+"</b>"+(keyword?"<small>원문 키워드 · "+esc(keyword)+"</small>":"")+"</span><em>+"+esc(points)+"</em></span>"}).join("");
+          if(!signalChips&&!masked)signalChips=(item.tags||[]).map(function(tag){return "<span class='signal-chip'><span><b>"+esc(tag)+"</b><small>직무 신호 확인</small></span><em>확인</em></span>"}).join("")||"<span class='signal-chip'><span><b>사람이 입력한 근거</b><small>공개 원문 직접 확인</small></span><em>확인</em></span>";
+          var scoreNote=masked?"점수 산정 설명 가림":String(item.scoreNote||"공개 원문의 키워드·직무 신호 배점 합계");
+          var keywordLines="<div class='keyword-lines'><div class='keyword-line'><b>발견한 검색어</b><span>"+esc(masked?"검색어 가림":retrievalKeywords.length?retrievalKeywords.join(" · "):item.manual?"수동 추가":"검색어 확인 필요")+"</span></div><div class='keyword-line'><b>프로필 역할어</b><span>"+esc(masked?"역할어 가림":matchedKeywords.length?matchedKeywords.join(" · "):"원문 확인 필요")+"</span></div></div>";
           var koreaEvidenceLevel=String(item.koreaEvidenceLevel||"");
           var koreaEvidenceLabel=koreaEvidenceLevel==="strong"?"한국 직무근거":koreaEvidenceLevel==="weak"?"한국 관련 단서":koreaEvidenceLevel==="unverified"?"한국 근거 미확인":"";
           var koreaEvidenceClass=koreaEvidenceLevel==="strong"?"green":"amber";
           var koreaEvidencePill=masked?"":(koreaEvidenceLabel?"<span class='pill "+koreaEvidenceClass+"'>"+esc(koreaEvidenceLabel)+(item.koreaEvidence?" · "+esc(item.koreaEvidence):"")+"</span>":"");
           var retrievalPill=masked||item.retrievalScore===null||item.retrievalScore===undefined?"":"<span class='pill' title='해당 Tavily 검색의 보조 관련도이며 직무 적합도 또는 합격확률이 아닙니다.'>Tavily 관련도 "+esc(item.retrievalScore)+"/100</span>";
-          var verifyPill=masked?"<span class='pill amber'>검증정보 가림</span>":"<span class='pill amber'>VERIFY · "+esc(item.verify)+"</span>";
-          card.innerHTML="<span class='rank'>#"+(index+1)+"</span><div class='score'><div><strong>"+esc(item.score)+"</strong><span>우선검토</span></div></div><div><h3>"+esc(name)+"</h3><div class='role'>"+esc(role)+"</div><p class='summary'>"+esc(summary)+"</p><div class='tags'>"+tags+"</div></div><div class='card-foot'><div class='pills'><span class='pill blue'>Coverage "+esc(item.coverage)+"</span>"+verifyPill+koreaEvidencePill+keywordPill+retrievalPill+(item.auto?"<span class='pill green'>Tavily 자동추가</span>":"")+(item.manual?"<span class='pill green'>원문 확인 수동추가</span>":"")+sourceLinks+"</div>"+link+"</div>";
+          var scoreCaption=item.manual?"사람 참고점수":"AI 참고점수";
+          var verificationDetails=masked?"":"<details class='verify-details'><summary>검증 체크 보기</summary><p>"+esc(item.verify)+"</p></details>";
+          card.innerHTML="<span class='rank'>#"+(index+1)+"</span><div class='score'><div><strong>"+esc(item.score)+"</strong><span>"+esc(scoreCaption)+"</span></div></div><div class='candidate-main'><h3>"+esc(name)+"</h3><div class='role'>"+esc(role)+"</div><div class='review-reason'><div class='reason-head'><strong>이 후보를 확인해볼 이유</strong><span>"+esc(scoreNote)+"</span></div><div class='signal-list'>"+signalChips+"</div>"+keywordLines+"</div><div class='evidence-box'><strong>공개 원문에서 확인할 문장</strong><p>"+esc(summary)+"</p></div></div><div class='card-foot'><div class='pills'><span class='pill blue'>공개근거 "+esc(item.coverage)+"</span>"+koreaEvidencePill+retrievalPill+(item.auto?"<span class='pill green'>자동 검색</span>":"")+(item.manual?"<span class='pill green'>사람이 추가</span>":"")+sourceLinks+"</div>"+link+"</div>"+verificationDetails;
           grid.appendChild(card);
         });
         var manual=candidates.filter(function(x){return x.manual}).length;
         var auto=candidates.filter(function(x){return x.auto}).length;
         byId("manual-count").textContent="검색 추가 "+auto+" · 수동 "+manual;
         byId("pool-title").textContent="검토 후보 "+candidates.length+"명";
-        byId("pool-subtitle").textContent=(auto||manual)?"검색 1회 최대 20명 · 현재 탭 전용 · URL 중복 제거·선택 기준 재정렬 · 새로고침/닫기 시 삭제":"검색 1회 최대 20명 · 현재 탭 전용 · 새로고침/닫기 시 삭제";
+        byId("pool-subtitle").textContent=(auto||manual)?"낮은 점수도 제외하지 않음 · 키워드 근거 공개 · URL 중복 제거 · 현재 탭 전용":"낮은 점수도 제외하지 않음 · 검색 1회 최대 20명 · 현재 탭 전용";
         setBusy(busy);
       }
       function formPayload(mode){
@@ -937,7 +945,8 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         (Array.isArray(items)?items:[]).forEach(function(raw,index){
           var url=canonicalUrl(raw&&raw.url);if(!url)return;
           var rawRetrievalScore=raw&&raw.retrievalScore;var numericRetrievalScore=Number(rawRetrievalScore);
-          var item={id:"g"+Date.now()+"-"+index,name:String(raw.name||""),company:String(raw.company||"회사 확인 필요"),title:String(raw.title||""),location:String(raw.location||"공개 정보 확인 필요"),score:Math.max(0,Math.min(100,Number(raw.score)||0)),retrievalScore:rawRetrievalScore===null||rawRetrievalScore===undefined||rawRetrievalScore===""||!Number.isFinite(numericRetrievalScore)?null:Math.max(0,Math.min(100,Math.round(numericRetrievalScore))),coverage:String(raw.coverage||"Low"),summary:String(raw.summary||""),koreaEvidence:String(raw.koreaEvidence||""),koreaEvidenceLevel:String(raw.koreaEvidenceLevel||""),tags:Array.isArray(raw.tags)?raw.tags.slice(0,5):[],verify:String(raw.verify||"필수 gate 원문 검증"),url:url,manual:false,auto:true,sources:Array.isArray(raw.sources)?raw.sources:[],matchedKeywords:Array.isArray(raw.matchedKeywords)?raw.matchedKeywords.slice(0,5):[],retrievalKeywords:Array.isArray(raw.retrievalKeywords)?raw.retrievalKeywords.slice(0,5):[]};
+          var scoreBreakdown=(Array.isArray(raw&&raw.scoreBreakdown)?raw.scoreBreakdown:[]).slice(0,8).map(function(signal){return {id:String(signal&&signal.id||""),label:String(signal&&signal.label||"직무 신호"),keyword:String(signal&&signal.keyword||""),points:Math.max(0,Math.min(100,Math.round(Number(signal&&signal.points)||0)))}});
+          var item={id:"g"+Date.now()+"-"+index,name:String(raw.name||""),company:String(raw.company||"회사 확인 필요"),title:String(raw.title||""),location:String(raw.location||"공개 정보 확인 필요"),score:Math.max(0,Math.min(100,Number(raw.score)||0)),rawScore:Math.max(0,Math.min(100,Number(raw.rawScore)||Number(raw.score)||0)),scoreNote:String(raw.scoreNote||"공개 원문의 키워드·직무 신호 배점 합계"),scoreBreakdown:scoreBreakdown,retrievalScore:rawRetrievalScore===null||rawRetrievalScore===undefined||rawRetrievalScore===""||!Number.isFinite(numericRetrievalScore)?null:Math.max(0,Math.min(100,Math.round(numericRetrievalScore))),coverage:String(raw.coverage||"Low"),summary:String(raw.summary||""),koreaEvidence:String(raw.koreaEvidence||""),koreaEvidenceLevel:String(raw.koreaEvidenceLevel||""),tags:Array.isArray(raw.tags)?raw.tags.slice(0,5):[],verify:String(raw.verify||"필수 gate 원문 검증"),url:url,manual:false,auto:true,sources:Array.isArray(raw.sources)?raw.sources:[],matchedKeywords:Array.isArray(raw.matchedKeywords)?raw.matchedKeywords.slice(0,5):[],retrievalKeywords:Array.isArray(raw.retrievalKeywords)?raw.retrievalKeywords.slice(0,5):[]};
           if(!item.name||!item.title||!item.summary)return;
           var existingIndex=candidates.findIndex(function(candidate){return canonicalUrl(candidate.url)===url});
           if(existingIndex>=0){
@@ -945,7 +954,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
             var sourceMap={};(existing.sources||[]).concat(item.sources||[]).forEach(function(source){var key=canonicalUrl(source&&source.uri)||safeHttpUrl(source&&source.uri);if(key&&!sourceMap[key])sourceMap[key]=source});
             var keywordMap={};(existing.matchedKeywords||[]).concat(item.matchedKeywords||[]).forEach(function(keyword){var key=String(keyword||"").trim().toLowerCase();if(key&&!keywordMap[key])keywordMap[key]=String(keyword).trim()});
             if(existing.manual){
-              candidates[existingIndex]={id:existing.id,name:existing.name,company:existing.company,title:existing.title,location:existing.location,score:existing.score,retrievalScore:item.retrievalScore===null?(existing.retrievalScore===undefined?null:existing.retrievalScore):item.retrievalScore,coverage:existing.coverage,summary:existing.summary,koreaEvidence:item.koreaEvidence||existing.koreaEvidence||"",koreaEvidenceLevel:item.koreaEvidenceLevel||existing.koreaEvidenceLevel||"",tags:existing.tags,verify:existing.verify,url:existing.url,manual:true,auto:true,sources:Object.keys(sourceMap).map(function(key){return sourceMap[key]}).slice(0,6),matchedKeywords:Object.keys(keywordMap).map(function(key){return keywordMap[key]}).slice(0,5),retrievalKeywords:item.retrievalKeywords||existing.retrievalKeywords||[]};
+              candidates[existingIndex]={id:existing.id,name:existing.name,company:existing.company,title:existing.title,location:existing.location,score:existing.score,rawScore:item.rawScore||existing.rawScore||existing.score,scoreNote:"사람이 입력한 참고점수 · 아래는 자동 검색에서 확인된 직무 신호",scoreBreakdown:item.scoreBreakdown.length?item.scoreBreakdown:existing.scoreBreakdown||[],retrievalScore:item.retrievalScore===null?(existing.retrievalScore===undefined?null:existing.retrievalScore):item.retrievalScore,coverage:existing.coverage,summary:existing.summary,koreaEvidence:item.koreaEvidence||existing.koreaEvidence||"",koreaEvidenceLevel:item.koreaEvidenceLevel||existing.koreaEvidenceLevel||"",tags:existing.tags,verify:existing.verify,url:existing.url,manual:true,auto:true,sources:Object.keys(sourceMap).map(function(key){return sourceMap[key]}).slice(0,6),matchedKeywords:Object.keys(keywordMap).map(function(key){return keywordMap[key]}).slice(0,5),retrievalKeywords:item.retrievalKeywords||existing.retrievalKeywords||[]};
             }else{
               item.id=existing.id;item.sources=Object.keys(sourceMap).map(function(key){return sourceMap[key]}).slice(0,6);item.matchedKeywords=Object.keys(keywordMap).map(function(key){return keywordMap[key]}).slice(0,5);candidates[existingIndex]=item;
             }
@@ -969,8 +978,8 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         byId("search-progress").dataset.state="loading";byId("search-progress").setAttribute("aria-busy","true");byId("search-status-icon").textContent="";
         byId("search-summary").classList.add("hidden");
         byId("search-title").textContent="후보를 찾고 있습니다";
-        byId("search-subtitle").textContent=keywordCount+"개 역할 키워드를 검색하고 있습니다. 완료될 때까지 이 화면을 유지해 주세요.";
-        byId("search-message").textContent="검색 결과는 완료 후 후보 카드와 요약으로 표시됩니다.";
+        byId("search-subtitle").textContent=keywordCount+"개 역할 키워드 검색 중 · 완료 후 후보 카드에서 배점 근거를 확인하세요.";
+        byId("search-message").textContent="검색 상태만 표시 중입니다.";
         setSearchProgressPhase(0);
         searchProgressTimer=setInterval(function(){if(searchProgressPhase<3)setSearchProgressPhase(searchProgressPhase+1)},4200);
       }
@@ -994,17 +1003,17 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         progress.dataset.state="idle";progress.setAttribute("aria-busy","false");progress.querySelector("[role='progressbar']").setAttribute("aria-valuenow","0");
         byId("search-status-icon").textContent="○";byId("search-progress-bar").style.width="0%";steps.forEach(function(step){step.classList.remove("complete","active","error")});
         byId("search-phase-title").textContent="검색 준비 완료";byId("search-phase-copy").textContent="조건을 확인한 뒤 후보 찾기를 눌러주세요.";byId("search-summary").classList.add("hidden");
-        byId("search-message").textContent=message||"검색을 실행하면 진행 상태와 완료 요약만 표시됩니다.";
+        byId("search-message").textContent=message||"검색 후에는 후보별 ‘확인해볼 이유’를 먼저 보세요.";
       }
       function showSearchResult(data){
         fallbackUrl=data.fallbackUrl||fallbackUrl||"";byId("fallback-link").href=fallbackUrl;byId("fallback-link").classList.toggle("hidden",!fallbackUrl);
         if(data.status==="ok"){
           var merged=mergeSearchCandidates(data.candidates||[]);
           successfulSearch=true;setParity("RP-03","same");setParity("RP-05","same");setParity("RP-07","same");setParity("RP-10","same");
-          finishSearchProgress("success","검색이 완료되었습니다","검토 가능한 후보를 후보 풀에 반영했습니다.");
+          finishSearchProgress("success","검색 완료","후보별 키워드·배점·원문 근거를 아래에 정리했습니다.");
           byId("search-title").textContent="검색 완료";
           byId("search-subtitle").textContent="신규 "+merged.added+"명 · 중복 재평가 "+merged.updated+"명 · 현재 후보 풀 "+candidates.length+"명";
-          byId("search-message").textContent="후보 카드의 직무 근거와 공개 원문을 확인한 뒤 검토하세요.";
+          byId("search-message").textContent="AI 참고점수는 정렬용입니다. 발견 검색어·원문 키워드·배점과 공개 원문을 보고 사람이 판단하세요.";
           renderSearchSummary(data,Array.isArray(data.candidates)?data.candidates.length:0);
           renderCandidates();
           toast("검색을 완료하고 후보 풀을 업데이트했습니다.");
@@ -1101,7 +1110,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         if(issue==="private"){toast("수동 근거에는 이메일·전화번호·추가 URL 같은 연락처·비공개 식별정보를 입력할 수 없습니다.");return}
         if(!byId("candidate-reviewed").checked){toast("공개 원문 직접 확인 체크가 필요합니다.");return}
         var existing=candidates.find(function(item){return canonicalUrl(item.url)===url});
-        var item={id:existing?existing.id:"m"+Date.now(),name:name,company:company,title:title,location:"원문 확인",score:score,retrievalScore:existing&&existing.retrievalScore!==undefined?existing.retrievalScore:null,coverage:byId("candidate-coverage").value,summary:evidence,koreaEvidence:existing&&existing.koreaEvidence||"",koreaEvidenceLevel:existing&&existing.koreaEvidenceLevel||"",tags:["원문 확인","수동 추가"],verify:"구조화 검증·독립 리뷰",url:url,manual:true,auto:Boolean(existing&&existing.auto),sources:existing&&Array.isArray(existing.sources)?existing.sources:[],matchedKeywords:existing&&Array.isArray(existing.matchedKeywords)?existing.matchedKeywords:[],retrievalKeywords:existing&&Array.isArray(existing.retrievalKeywords)?existing.retrievalKeywords:[]};
+        var item={id:existing?existing.id:"m"+Date.now(),name:name,company:company,title:title,location:"원문 확인",score:score,rawScore:existing&&existing.rawScore||score,scoreNote:"사람이 원문을 확인하고 입력한 참고점수",scoreBreakdown:existing&&Array.isArray(existing.scoreBreakdown)?existing.scoreBreakdown:[],retrievalScore:existing&&existing.retrievalScore!==undefined?existing.retrievalScore:null,coverage:byId("candidate-coverage").value,summary:evidence,koreaEvidence:existing&&existing.koreaEvidence||"",koreaEvidenceLevel:existing&&existing.koreaEvidenceLevel||"",tags:["원문 확인","수동 추가"],verify:"구조화 검증·독립 리뷰",url:url,manual:true,auto:Boolean(existing&&existing.auto),sources:existing&&Array.isArray(existing.sources)?existing.sources:[],matchedKeywords:existing&&Array.isArray(existing.matchedKeywords)?existing.matchedKeywords:[],retrievalKeywords:existing&&Array.isArray(existing.retrievalKeywords)?existing.retrievalKeywords:[]};
         if(existing){candidates=candidates.map(function(x){return x.id===existing.id?item:x});toast("같은 URL의 후보를 갱신하고 전체 재정렬했습니다.")}
         else{candidates.push(item);toast("검증 후보를 병합하고 전체 재정렬했습니다.")}
         ["candidate-name","candidate-company","candidate-title","candidate-url","candidate-evidence"].forEach(function(id){byId(id).value=""});byId("candidate-reviewed").checked=false;
@@ -1116,7 +1125,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
       byId("reset-button").addEventListener("click",function(){
         candidates=snapshotCandidates.slice();searchRound=0;lastSearchSignature="";successfulSearch=false;fallbackUrl="";
         byId("search-title").textContent="키워드 검색 대기";
-        byId("search-subtitle").textContent="한 줄씩 독립 검색 → URL 합집합·중복 제거 → Gemini 최종 평가 → 후보 풀 자동 병합 순서로 실행합니다.";
+        byId("search-subtitle").textContent="여기에는 상태만 표시합니다. 핵심 결과는 아래 후보 카드의 키워드·배점·원문 근거입니다.";
         resetSearchPresentation("후보 풀을 비웠습니다. 왼쪽 키워드를 조정한 뒤 다시 검색하세요.");byId("fallback-link").classList.add("hidden");
         renderCandidates();setParity("RP-03","ready");setParity("RP-05","ready");setParity("RP-07","partial");toast("후보 풀을 비웠습니다.")
       });
@@ -2024,6 +2033,25 @@ function sourceSupportsSearchSignal(profile, signal, sourceText, input) {
   return Boolean(profile.patterns[signal] && profile.patterns[signal].test(sourceText));
 }
 
+function sourceSearchSignalKeyword(profile, signal, sourceText, input, matchedRoleTerms = []) {
+  if (profile.id === "privacy_security" && signal === "executive_privacy_governance") {
+    const roleTerm = Array.isArray(matchedRoleTerms)
+      ? matchedRoleTerms.find((value) => profile.patterns[signal].test(String(value || "")))
+      : "";
+    if (roleTerm) return compactText(roleTerm, 80);
+  }
+  if (profile.id === "generic_role" && signal === "role_keyword_match") {
+    const roleTerm = Array.isArray(matchedRoleTerms) ? matchedRoleTerms.find(Boolean) : "";
+    if (roleTerm) return compactText(roleTerm, 80);
+    const normalizedSource = normalizedEvidenceText(sourceText);
+    const keyword = searchKeywordsFor(input).find((value) => normalizedSource.includes(normalizedEvidenceText(value)));
+    return compactText(keyword, 80);
+  }
+  const pattern = profile.patterns[signal];
+  const match = pattern ? String(sourceText || "").match(pattern) : null;
+  return compactText(match && match[0], 80);
+}
+
 function candidateResponsePart(result) {
   const candidate = result && result.payload && Array.isArray(result.payload.candidates) ? result.payload.candidates[0] : null;
   const parts = candidate && candidate.content && Array.isArray(candidate.content.parts) ? candidate.content.parts : [];
@@ -2545,9 +2573,10 @@ function structuredSearchCandidates(result, sources, input) {
     }
     if (!name || !evidence || evidence.length < 24) continue;
     if (!sourceText.includes(normalizedEvidenceText(name)) || !sourceText.includes(normalizedEvidenceText(evidence))) continue;
+    const scoringSourceText = source.title + " " + source.content;
     const signals = (Array.isArray(record.signals) ? record.signals : [])
       .map((item) => compactText(item, 80).toLowerCase())
-      .filter((item, index, values) => Object.hasOwn(signalProfile.weights, item) && values.indexOf(item) === index && sourceSupportsSearchSignal(signalProfile, item, source.title + " " + source.content, input));
+      .filter((item, index, values) => Object.hasOwn(signalProfile.weights, item) && values.indexOf(item) === index && sourceSupportsSearchSignal(signalProfile, item, scoringSourceText, input));
     if (!signals.length) continue;
     const title = modelTitle && sourceText.includes(normalizedEvidenceText(modelTitle)) ? modelTitle : source.title.replace(/\s*[|·-]\s*LinkedIn\s*$/i, "");
     const company = modelCompany && modelCompany.toUpperCase() !== "UNKNOWN" && sourceText.includes(normalizedEvidenceText(modelCompany)) ? modelCompany : "회사 확인 필요";
@@ -2564,6 +2593,16 @@ function structuredSearchCandidates(result, sources, input) {
         : koreaEvidenceLevel === "unverified" ? "한국 관련 직무 근거 미확인" : "";
     const rawScore = signals.reduce((sum, signal) => sum + signalProfile.weights[signal], 0);
     const score = koreaEvidenceLevel === "weak" ? Math.min(rawScore, 69) : koreaEvidenceLevel === "unverified" ? Math.min(rawScore, 49) : rawScore;
+    const scoreBreakdown = signals.map((signal) => ({
+      id: signal,
+      label: signalProfile.labels[signal],
+      keyword: sourceSearchSignalKeyword(signalProfile, signal, evidence, input, source.matchedRoleTerms)
+        || sourceSearchSignalKeyword(signalProfile, signal, scoringSourceText, input, source.matchedRoleTerms),
+      points: signalProfile.weights[signal],
+    }));
+    const scoreNote = score < rawScore
+      ? "직무 신호 합계 " + rawScore + "점 → " + (koreaEvidenceLevel === "weak" ? "한국 관련 단서" : "한국 직무근거 미확인") + " 단계 상한 " + score + "점 적용"
+      : "공개 원문의 키워드·직무 신호 배점 합계";
     const coverage = koreaEvidenceLevel === "unverified"
       ? "Low"
       : score >= 70 && evidence.length >= 80 ? "High" : score >= 40 ? "Medium" : "Low";
@@ -2579,6 +2618,9 @@ function structuredSearchCandidates(result, sources, input) {
       title,
       location,
       score,
+      rawScore,
+      scoreNote,
+      scoreBreakdown,
       retrievalScore: source.relevance == null ? null : Math.round(Math.max(0, Math.min(1, source.relevance)) * 100),
       coverage,
       summary: evidence,

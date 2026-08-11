@@ -128,8 +128,13 @@ assert.match(home, /<strong>Direct X-ray Searching<\/strong>/);
 assert.match(home, /class="btn hidden" id="workflow-link"/);
 assert.match(home, /\.brand \.brand-mark\{[^}]*margin-top:0[^}]*color:#fff[^}]*display:grid/, "the compact mobile brand mark keeps centered high-contrast initials");
 assert.match(home, /키워드별 후보 찾기/);
+assert.match(home, /AI 점수는 정렬하고/);
+assert.match(home, /사람은 가능성을 판단합니다/);
+assert.match(home, /낮은 점수 후보도 풀에 남기고/);
 assert.match(home, /검색 키워드 · 한 줄에 하나/);
-assert.match(home, /필수 조건 · 최종 평가용/);
+assert.match(home, /필수 조건 · 검증 체크 참고/);
+assert.match(home, /우대 조건 · 검증 체크 참고/);
+assert.match(home, /필수·우대 조건은 후보별 검증 체크를 만드는 참고로만 사용/);
 assert.match(home, /검토 후보 0명/);
 assert.match(home, /아직 찾은 후보가 없습니다/);
 assert.match(home, /var snapshotCandidates = \[\]/);
@@ -148,11 +153,19 @@ assert.match(home, /function finishSearchProgress\(state,title,copy\)/);
 assert.match(home, /@keyframes search-shimmer/);
 assert.match(home, /id="search-summary"/);
 assert.match(home, /id="pool-sort"/);
-assert.match(home, /평가 점수 높은순/);
+assert.match(home, /AI 참고점수 높은순/);
 assert.match(home, /한국 직무근거 우선/);
 assert.match(home, /Tavily 관련도순 · 보조/);
 assert.match(home, /function sortCandidatesForReview\(items,mode\)/);
 assert.match(home, /검색 1회 최대 20명/);
+assert.match(home, /점수 읽는 법/);
+assert.match(home, /이 후보를 확인해볼 이유/);
+assert.match(home, /원문 키워드/);
+assert.match(home, /발견한 검색어/);
+assert.match(home, /프로필 역할어/);
+assert.match(home, /공개 원문에서 확인할 문장/);
+assert.match(home, /검증 체크 보기/);
+assert.match(home, /\.search-flow\{display:none\}/, "the search process is reduced to a compact status instead of dominating the result view");
 assert.doesNotMatch(home, /id="search-sources"|id="search-suggestions"|Tavily 실행어|설계 X-ray|키워드 성과/, "raw queries, source dumps, and per-keyword diagnostics are not rendered in the recruiter UI");
 assert.match(home, /CPO 프리셋은 해외 거주자도 검색/);
 assert.match(home, /국적·시민권 자동 추론 안 함/);
@@ -263,10 +276,12 @@ const mergeSandbox = {
     name: "Model Rewrite", company: "Model Co", title: "Model CPO", location: "Busan", score: 99, coverage: "High",
     summary: "Model evidence", koreaEvidence: "Korea privacy", koreaEvidenceLevel: "strong", tags: ["개인정보 프로그램"], verify: "재확인",
     url: "https://linkedin.com/in/human-verified/", retrievalScore: 93, sources: [{ uri: "https://example.com/new-evidence", title: "New evidence" }], matchedKeywords: ["Head of Privacy"],
+    rawScore: 42, scoreNote: "공개 원문의 키워드·직무 신호 배점 합계", scoreBreakdown: [{ id: "privacy_program", label: "개인정보 프로그램", keyword: "privacy program", points: 22 }],
   }, {
     name: "Fresh Auto", company: "Fresh Co", title: "Fresh CPO", location: "Seoul", score: 88, coverage: "High",
     summary: "New model evidence", koreaEvidence: "PIPA", koreaEvidenceLevel: "strong", tags: ["privacy"], verify: "new",
     url: "https://www.linkedin.com/in/auto-refresh", retrievalScore: 87, sources: [{ uri: "https://example.com/refreshed", title: "Refreshed evidence" }], matchedKeywords: ["CPO"],
+    rawScore: 88, scoreNote: "공개 원문의 키워드·직무 신호 배점 합계", scoreBreakdown: [{ id: "executive_privacy_governance", label: "CPO 거버넌스", keyword: "CPO", points: 20 }],
   }, {
     name: "New Search Candidate", company: "New Co", title: "CISO", location: "Seoul", score: 70, coverage: "High",
     summary: "Search evidence", koreaEvidence: "ISMS-P", koreaEvidenceLevel: "strong", tags: ["ISMS 심사"], verify: "원문 확인",
@@ -290,6 +305,8 @@ assert.equal(mergeSandbox.candidates[0].koreaEvidenceLevel, "strong");
 assert.equal(mergeSandbox.candidates[0].retrievalScore, 93);
 assert.equal(mergeSandbox.candidates[0].sources.length, 2);
 assert.deepEqual(Array.from(mergeSandbox.candidates[0].matchedKeywords), ["CPO", "Head of Privacy"]);
+assert.equal(mergeSandbox.candidates[0].scoreNote, "사람이 입력한 참고점수 · 아래는 자동 검색에서 확인된 직무 신호");
+assert.deepEqual(Array.from(mergeSandbox.candidates[0].scoreBreakdown, (signal) => ({ ...signal })), [{ id: "privacy_program", label: "개인정보 프로그램", keyword: "privacy program", points: 22 }]);
 assert.equal(mergeSandbox.candidates[1].id, "auto-1");
 assert.equal(mergeSandbox.candidates[1].name, "Fresh Auto");
 assert.equal(mergeSandbox.candidates[1].score, 88);
@@ -298,6 +315,8 @@ assert.equal(mergeSandbox.candidates[1].koreaEvidence, "PIPA");
 assert.equal(mergeSandbox.candidates[1].koreaEvidenceLevel, "strong");
 assert.equal(mergeSandbox.candidates[1].retrievalScore, 87);
 assert.equal(mergeSandbox.candidates[1].sources.length, 2);
+assert.equal(mergeSandbox.candidates[1].rawScore, 88);
+assert.deepEqual(Array.from(mergeSandbox.candidates[1].scoreBreakdown, (signal) => ({ ...signal })), [{ id: "executive_privacy_governance", label: "CPO 거버넌스", keyword: "CPO", points: 20 }]);
 assert.equal(mergeSandbox.candidates[2].koreaEvidence, "ISMS-P");
 
 const sortSandbox = {
@@ -1049,6 +1068,11 @@ assert.equal(search.candidates.length, 8, "role-bound candidates remain reviewab
 assert.equal(search.candidates[0].name, "Test Privacy Leader");
 assert.equal(search.candidates[0].url, "https://www.linkedin.com/in/test-privacy-leader");
 assert.equal(search.candidates[0].score, 84);
+assert.equal(search.candidates[0].rawScore, 84);
+assert.equal(search.candidates[0].scoreNote, "공개 원문의 키워드·직무 신호 배점 합계");
+assert.equal(search.candidates[0].scoreBreakdown.reduce((sum, signal) => sum + signal.points, 0), 84);
+assert.deepEqual(search.candidates[0].scoreBreakdown.map((signal) => signal.label), ["CPO 거버넌스", "개인정보 프로그램", "클라우드 보안", "ISMS 심사", "조직 리딩", "플랫폼·데이터"]);
+assert.deepEqual(search.candidates[0].scoreBreakdown.map((signal) => signal.keyword.toLowerCase()), ["ciso", "privacy program", "aws", "isms-p", "team leadership", "platform"]);
 assert.equal(search.candidates[0].retrievalScore, 91);
 assert.equal(search.candidates[0].source, "tavily_linkedin_gemini_json_schema");
 assert.deepEqual(search.candidates[0].sources, [{ uri: "https://www.linkedin.com/in/test-privacy-leader", title: "Test Privacy Leader - CISO / CPO at Example Platform | LinkedIn" }]);
@@ -1067,10 +1091,14 @@ assert.equal(search.candidates[6].name, "Company Field Candidate");
 assert.equal(search.candidates[6].koreaEvidenceLevel, "weak");
 assert.equal(search.candidates[6].koreaEvidence, "Seoul");
 assert.ok(search.candidates[6].score <= 69);
+assert.equal(search.candidates[6].scoreBreakdown.reduce((sum, signal) => sum + signal.points, 0), search.candidates[6].rawScore);
+assert.equal(search.candidates[6].scoreNote, "공개 원문의 키워드·직무 신호 배점 합계");
 assert.equal(search.candidates[7].name, "Kansas False Positive");
 assert.equal(search.candidates[7].koreaEvidenceLevel, "unverified");
 assert.equal(search.candidates[7].coverage, "Low");
 assert.ok(search.candidates[7].score <= 49);
+assert.equal(search.candidates[7].scoreBreakdown.reduce((sum, signal) => sum + signal.points, 0), search.candidates[7].rawScore);
+assert.equal(search.candidates[7].scoreNote, "공개 원문의 키워드·직무 신호 배점 합계");
 assert.ok(search.koreaStrongProfileCount > 0);
 assert.ok(search.koreaWeakProfileCount > 0);
 assert.ok(search.koreaUnverifiedProfileCount > 0);
@@ -1179,6 +1207,9 @@ assert.equal(fiftySourceEvaluation.acceptedResultCount, 20);
 assert.equal(fiftySourceEvaluation.sources.length, 20);
 assert.equal(new Set(fiftySourceEvaluation.candidates.map((candidate) => candidate.url)).size, 20);
 assert.ok(fiftySourceEvaluation.candidates.every((candidate) => candidate.retrievalScore === 80));
+assert.ok(fiftySourceEvaluation.candidates.every((candidate) => candidate.scoreBreakdown.length === 2));
+assert.ok(fiftySourceEvaluation.candidates.every((candidate) => candidate.scoreBreakdown.reduce((sum, signal) => sum + signal.points, 0) === candidate.rawScore));
+assert.ok(fiftySourceEvaluation.candidates.every((candidate) => candidate.scoreBreakdown.every((signal) => signal.keyword)), "every reference-score signal names the exact source keyword that triggered it");
 assert.ok(fiftySourceEvaluation.keywordMetrics.every((metric) => metric.rawResultCount === 10 && metric.uniqueProfileCount === 10 && metric.locationPassedProfileCount === 10));
 assert.equal(fiftySourceEvaluation.keywordMetrics.reduce((sum, metric) => sum + metric.finalAcceptedCandidateCount, 0), 20);
 tavilyResponseMode = "normal";
