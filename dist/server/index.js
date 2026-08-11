@@ -1166,8 +1166,10 @@ const ANALYSIS_SYSTEM_INSTRUCTION = [
   "Only classify the explicitly supplied source IDs. Never invent a person, URL, or fact.",
   "Follow the requested candidate block format exactly.",
 ].join("\n");
-const GEMINI_MODEL_PRIORITY = Object.freeze(["gemini-3.5-flash-lite", "gemini-2.5-flash-lite"]);
+const GEMINI_MODEL_PRIORITY = Object.freeze(["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite"]);
+const GEMINI_STRUCTURED_MODEL_PRIORITY = Object.freeze(["gemini-3.1-flash-lite", "gemini-2.5-flash-lite"]);
 const GEMINI_API_VERSION_PRIORITY = Object.freeze(["v1", "v1beta"]);
+const GEMINI_STRUCTURED_API_VERSION_PRIORITY = Object.freeze(["v1beta", "v1"]);
 
 function actionRequestAllowed(request, env, headerName, requireOrigin) {
   const url = new URL(request.url);
@@ -1608,8 +1610,8 @@ const GEMINI_SOURCING_RESPONSE_SCHEMA = Object.freeze({
 });
 
 async function callGeminiModel(apiKey, model, apiVersion, prompt, responseSchema = null) {
-  if (!GEMINI_MODEL_PRIORITY.includes(model)) throw new Error("Unsupported Gemini model.");
-  if (!GEMINI_API_VERSION_PRIORITY.includes(apiVersion)) throw new Error("Unsupported Gemini API version.");
+  if (![...GEMINI_MODEL_PRIORITY, ...GEMINI_STRUCTURED_MODEL_PRIORITY].includes(model)) throw new Error("Unsupported Gemini model.");
+  if (![...GEMINI_API_VERSION_PRIORITY, ...GEMINI_STRUCTURED_API_VERSION_PRIORITY].includes(apiVersion)) throw new Error("Unsupported Gemini API version.");
   const endpoint = "https://generativelanguage.googleapis.com/" + apiVersion + "/models/" + model + ":generateContent";
   const body = {
     systemInstruction: { parts: [{ text: ANALYSIS_SYSTEM_INSTRUCTION }] },
@@ -1643,19 +1645,21 @@ function geminiFallbackAllowed(result) {
   if (status === 404) return true;
   const upstreamStatus = result && result.payload && result.payload.error && result.payload.error.status;
   return status === 400
-    && result.model === GEMINI_MODEL_PRIORITY[0]
+    && result.model === result.preferredModel
     && upstreamStatus === "INVALID_ARGUMENT";
 }
 
 async function callGemini(apiKey, prompt, responseSchema = null) {
-  const models = GEMINI_MODEL_PRIORITY.slice();
+  const models = (responseSchema ? GEMINI_STRUCTURED_MODEL_PRIORITY : GEMINI_MODEL_PRIORITY).slice();
+  const apiVersions = responseSchema ? GEMINI_STRUCTURED_API_VERSION_PRIORITY : GEMINI_API_VERSION_PRIORITY;
+  const preferredModel = models[0];
   const attempts = [];
   let lastResult = null;
   for (let index = 0; index < models.length; index += 1) {
-    for (const apiVersion of GEMINI_API_VERSION_PRIORITY) {
+    for (const apiVersion of apiVersions) {
       const result = await callGeminiModel(apiKey, models[index], apiVersion, prompt, responseSchema);
       attempts.push({ model: result.model, apiVersion: result.apiVersion, status: result.response.status });
-      lastResult = { ...result, attempts: attempts.slice() };
+      lastResult = { ...result, attempts: attempts.slice(), preferredModel };
       if (result.response.ok) return lastResult;
       if (result.response.status !== 404) break;
     }
@@ -1714,7 +1718,7 @@ async function handleGeminiKeyTest(request, env) {
       const message = baseMessage + (diagnostic ? " · Google " + diagnostic : "");
       return jsonResponse({ status: "test_failed", message, httpStatus: status, errorCode: safeError.code, upstreamStatus: safeError.upstreamStatus, reason: safeError.reason, attemptedModels: result.attempts || [] }, { status: status === 429 ? 429 : 502 });
     }
-    return jsonResponse({ status: "ok", model: result.model, fallbackUsed: result.model !== GEMINI_MODEL_PRIORITY[0], attemptedModels: result.attempts, latencyMs: result.elapsed });
+    return jsonResponse({ status: "ok", model: result.model, fallbackUsed: result.model !== result.preferredModel, attemptedModels: result.attempts, latencyMs: result.elapsed });
   } catch (_) {
     console.error("gemini_test_response_error");
     return jsonResponse({ status: "response_error", message: "Gemini 응답을 처리하지 못했습니다. 잠시 후 다시 시도하세요." }, { status: 502 });
@@ -2735,7 +2739,7 @@ async function handleSourcingSearch(request, env) {
         return jsonResponse({ status: "public_site_daily_limit", message: "공개 링크의 오늘 검색 예산을 모두 사용했습니다. 한국시간 기준 다음 날 다시 실행하세요.", dailyCreditLimit: publicGlobalBudget.limit, fallbackUrl }, { status: 429 });
       }
     }
-    const maximumUpstreamAttempts = GEMINI_MODEL_PRIORITY.length * GEMINI_API_VERSION_PRIORITY.length;
+    const maximumUpstreamAttempts = GEMINI_STRUCTURED_MODEL_PRIORITY.length * GEMINI_STRUCTURED_API_VERSION_PRIORITY.length;
     let geminiBudgetAllowed;
     try {
       geminiBudgetAllowed = await reserveDailyGeminiSearch(env, 450, maximumUpstreamAttempts);
@@ -2934,7 +2938,7 @@ async function handleSourcingSearch(request, env) {
       mode: "tavily_gemini_ephemeral",
       providers: { search: "tavily", structure: "gemini" },
       model: result.model,
-      fallbackUsed: result.model !== GEMINI_MODEL_PRIORITY[0],
+      fallbackUsed: result.model !== result.preferredModel,
       attemptedModels: result.attempts,
       text: executedKeywords.length + "개 키워드를 각각 검색하고 URL 기준 합집합·중복 제거 후 역할군 문맥을 검증했습니다." + koreaEvidenceSummary + " Gemini JSON 평가에서 source ID·직무 excerpt·직무 signal이 원문과 일치한 후보 " + searchCandidates.length + "명을 회수했습니다. " + (preparedSources.strictKoreaLocation ? "해외 또는 위치 미확인 결과 " + locationFilteredCount + "건은 제외했습니다. " : "현재 거주지는 필터링하지 않았으며 국적·시민권은 추론하지 않았습니다. ") + "모든 프로필 사실은 사람이 원문에서 검증해야 합니다.",
       candidates: searchCandidates,

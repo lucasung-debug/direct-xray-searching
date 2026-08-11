@@ -452,7 +452,7 @@ assert.notEqual(DB.secrets.get("tavily_api_key").cipher_b64, firstTavilyCipher, 
 
 let forceTavilyStatus = 0;
 let forceGeminiStatus = 0;
-let forceGemini35StructuredInvalidArgument = false;
+let forcePreferredStructuredInvalidArgument = false;
 let networkFailureProvider = "";
 let tavilyResponseMode = "normal";
 let tavilySearchCalls = 0;
@@ -999,7 +999,7 @@ globalThis.fetch = async (url, init = {}) => {
     }
     if (networkFailureProvider === "gemini") throw new TypeError("network");
     if (forceGeminiStatus) return new Response(JSON.stringify({ error: { code: forceGeminiStatus, status: forceGeminiStatus === 401 ? "UNAUTHENTICATED" : "PERMISSION_DENIED", details: [{ reason: forceGeminiStatus === 401 ? "API_KEY_INVALID" : "SERVICE_DISABLED" }] } }), { status: forceGeminiStatus, headers: { "content-type": "application/json" } });
-    if (!isKeyTest && forceGemini35StructuredInvalidArgument && model === "gemini-3.5-flash-lite") {
+    if (!isKeyTest && forcePreferredStructuredInvalidArgument && model === "gemini-3.1-flash-lite") {
       return new Response(JSON.stringify({ error: { code: 400, status: "INVALID_ARGUMENT", details: [{ reason: "INVALID_ARGUMENT" }] } }), { status: 400, headers: { "content-type": "application/json" } });
     }
     if (model === "gemini-3.5-flash-lite") return new Response(JSON.stringify({ error: { code: 404, status: "NOT_FOUND", details: [{ reason: "MODEL_NOT_FOUND" }] } }), { status: 404, headers: { "content-type": "application/json" } });
@@ -1020,12 +1020,12 @@ assert.equal(tavilyUsageCalls, 1);
 response = await worker.fetch(request("/api/settings/gemini/test", { method: "POST", headers: { ...settingsHeaders, "content-type": "application/json" }, body: "{}" }), env);
 assert.equal(response.status, 200);
 const geminiTest = await response.json();
-assert.equal(geminiTest.model, "gemini-2.5-flash-lite");
+assert.equal(geminiTest.model, "gemini-3.1-flash-lite");
 assert.equal(geminiTest.fallbackUsed, true);
 assert.deepEqual(geminiTest.attemptedModels, [
   { model: "gemini-3.5-flash-lite", apiVersion: "v1", status: 404 },
   { model: "gemini-3.5-flash-lite", apiVersion: "v1beta", status: 404 },
-  { model: "gemini-2.5-flash-lite", apiVersion: "v1", status: 200 },
+  { model: "gemini-3.1-flash-lite", apiVersion: "v1", status: 200 },
 ]);
 
 capturedTavilyBodies = [];
@@ -1037,8 +1037,8 @@ const search = await response.json();
 assert.equal(search.status, "ok");
 assert.equal(search.mode, "tavily_gemini_ephemeral");
 assert.deepEqual(search.providers, { search: "tavily", structure: "gemini" });
-assert.equal(search.model, "gemini-2.5-flash-lite");
-assert.equal(search.fallbackUsed, true);
+assert.equal(search.model, "gemini-3.1-flash-lite");
+assert.equal(search.fallbackUsed, false);
 assert.equal(search.usageCredits, 10);
 assert.equal(search.locationPolicy, "korea_professional_relevance_residency_agnostic");
 assert.equal(search.locationFilteredCount, 0);
@@ -1145,7 +1145,7 @@ assert.match(JSON.stringify(search.candidates), /Unknown Location Candidate/, "U
 assert.match(capturedGeminiPrompt, /Privacy by Design/);
 assert.match(capturedGeminiPrompt, /never output a URL/i);
 assert.equal(tavilySearchCalls - tavilyCallsBeforeAtomicSearch, 5);
-assert.equal(geminiCalls - geminiCallsBeforeAtomicSearch, 3, "five retrieval calls feed one logical Gemini evaluation with model fallback attempts");
+assert.equal(geminiCalls - geminiCallsBeforeAtomicSearch, 1, "five retrieval calls feed one logical structured evaluation on the preferred legacy-compatible model");
 assert.equal(Array.from(DB.usage.values())[0].request_count, 4, "CTA reserves maximum Gemini fallback attempts");
 assert.equal(Array.from(DB.actorUsage.entries()).find(([key]) => key.endsWith("|" + testOwnerHash))[1].reserved_credits, 10, "owner Tavily credits are reserved against a pseudonymous daily actor budget");
 const sourceRecordsInForwardKeywordOrder = sourceRecordsFromPrompt(capturedGeminiPrompt);
@@ -1155,7 +1155,7 @@ assert.ok(sourceRecordsInForwardKeywordOrder.some((record) => /Test Privacy Lead
 assert.ok(sourceRecordsInForwardKeywordOrder.some((record) => record.matched_role_terms.includes("Privacy Director") && record.retrieval_keywords.length === 5));
 
 DB.lock = null;
-forceGemini35StructuredInvalidArgument = true;
+forcePreferredStructuredInvalidArgument = true;
 const geminiCallsBeforeInvalidArgumentFallback = geminiCalls;
 response = await worker.fetch(request("/api/search", {
   method: "POST",
@@ -1168,11 +1168,11 @@ assert.equal(invalidArgumentFallback.status, "ok");
 assert.equal(invalidArgumentFallback.model, "gemini-2.5-flash-lite");
 assert.equal(invalidArgumentFallback.fallbackUsed, true);
 assert.deepEqual(invalidArgumentFallback.attemptedModels, [
-  { model: "gemini-3.5-flash-lite", apiVersion: "v1", status: 400 },
-  { model: "gemini-2.5-flash-lite", apiVersion: "v1", status: 200 },
+  { model: "gemini-3.1-flash-lite", apiVersion: "v1beta", status: 400 },
+  { model: "gemini-2.5-flash-lite", apiVersion: "v1beta", status: 200 },
 ]);
 assert.equal(geminiCalls - geminiCallsBeforeInvalidArgumentFallback, 2, "a model-specific INVALID_ARGUMENT falls back once without retrying the same invalid request shape");
-forceGemini35StructuredInvalidArgument = false;
+forcePreferredStructuredInvalidArgument = false;
 
 response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify(searchPayload) }), env);
 assert.equal(response.status, 409);
