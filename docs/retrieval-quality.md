@@ -75,3 +75,37 @@ Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credi
 | 전체 latency | 운영 가능한 수준인지 별도 기록 |
 
 기준 recall이 오르지 않으면 dual-lane 전략은 기각하거나 수정합니다. 후보 수 증가만으로 성공 판정하지 않습니다.
+
+## 재현 가능한 비교 실행
+
+기준 URL과 실제 응답에는 공개 인물 프로필이 포함되므로 Git에 커밋하지 않습니다. 저장소에서 이미 무시하는 `qa/` 아래에 JSON을 두고, benchmark 출력에는 URL·이름 대신 기준 파일 순서에 따른 `R01`~`Rn`만 표시합니다.
+
+`qa/reference-urls.json`은 URL 문자열 배열 또는 `{ "references": [{ "url": "..." }] }` 형식입니다. `qa/search-request.json`은 화면에서 서버로 보내는 것과 같은 검색 조건입니다.
+
+```json
+{
+  "preset": "cpo",
+  "job": "CPO",
+  "location": "한국 관련 인재 · 현재 거주지 무관",
+  "keywords": "개인정보보호책임자\nCPO\nCISO\nHead of Privacy\n정보보호실장",
+  "required": "privacy 10년 cloud ISMS",
+  "preferred": "CISO SaaS",
+  "additional": "Privacy by Design",
+  "mode": "initial",
+  "round": 0
+}
+```
+
+저장해 둔 응답끼리 비교할 때:
+
+```powershell
+node scripts/benchmark-retrieval.mjs --reference qa/reference-urls.json --response qa/current-response.json --baseline-response qa/baseline-response.json --enforce
+```
+
+승인된 운영 배포를 다음 일일 한도 초기화 후 한 번 실행하고 응답을 저장할 때:
+
+```powershell
+node scripts/benchmark-retrieval.mjs --reference qa/reference-urls.json --endpoint https://example.com --request qa/search-request.json --execute-live --save-response qa/current-response.json --enforce
+```
+
+`--execute-live`가 없으면 네트워크 검색을 실행하지 않습니다. live 응답 저장 위치도 ignored `qa/` 내부로 제한합니다. 기본 합격선은 기준 URL 1개 이상 회수, 소스→카드 100%, Tavily 10 credits 이하이며 query·keyword별 최종 기여 편중과 latency는 별도 진단값으로 남깁니다.
