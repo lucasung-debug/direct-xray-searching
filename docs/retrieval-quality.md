@@ -31,13 +31,13 @@ v20→v23에서 Gemini가 구조화하지 않은 소스를 서버 근거로 복�
 1. `role_identity`: 정확한 역할어 + LinkedIn people profile + 직무 시장 문맥
 2. `professional_evidence`: CPO 프리셋이 소유한 서로 다른 책임·성과 facet
 
-CPO 프리셋의 전문근거 facet은 다음 다섯 가지입니다.
+CPO 프리셋의 전문근거 facet은 기준 후보군의 공개 신호 유형에 맞춰 다음 다섯 가지로 구성합니다.
 
-- 개인정보보호·거버넌스·총괄
-- ISMS-P·인증성과·심사대응
-- AWS·클라우드 보안·거버넌스
-- 사고대응·규제대응·조직리딩
-- Privacy by Design·PIA·데이터 lifecycle
+- 개인정보보호 거버넌스·사고·규제·ISMS-P 성과
+- 정보보호 센터·부문·조직 리딩
+- 플랫폼·클라우드 보안 리딩
+- 장기 개인정보·정보보호 경력과 ISMS-P·PIA 복수 근거
+- Privacy·AI 거버넌스 리더십
 
 ```text
 5 exact-role queries + 5 preset evidence-facet queries
@@ -61,7 +61,13 @@ Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credi
 - 낮은 점수·인접 후보도 정해진 범위에서 보존
 - 각 검색면의 raw→unique→role-bound→final 전환을 별도로 측정
 
-전문근거 검색 결과도 무조건 후보가 되지는 않습니다. 공개 문장 안에서 개인정보보호 책임과 ISMS-P·클라우드·사고대응·조직리딩 중 하나 이상의 실무 성과가 후보 본인에게 결속되어야 `adjacent` 후보가 됩니다. 자격증 보유, 주제 관심, 공유글, 채용공고만 있는 결과는 제외합니다.
+전문근거 검색 결과도 무조건 후보가 되지는 않습니다. 근거 강도를 세 단계로 나눕니다.
+
+- `direct`: 프리셋의 역할군 직함이 후보 본인에게 결속됨
+- `adjacent`: 개인정보보호 책임과 ISMS-P·클라우드·사고대응·조직리딩 중 하나 이상의 실무 성과가 후보 본인에게 결속됨
+- `expanded`: 직함·기업 책임범위는 미확인이지만, 10년 이상 장기 개인정보·보안 경력과 ISMS-P를 포함한 복수 전문근거가 있거나 Privacy·AI 거버넌스 리더십이 후보 본인에게 결속됨
+
+`expanded` 후보는 사람이 먼저 사실관계를 확인하도록 점수를 49점 이하, coverage를 `Low`, 검증 상태를 `VERIFY`로 고정합니다. 자격증 보유, 주제 관심, 공유글, 채용공고만 있는 결과는 계속 제외합니다.
 
 새 역할 프리셋은 해당 역할에 맞는 facet을 명시적으로 정의해야 합니다. 아직 프리셋이 없는 커스텀 역할은 두 검색면 모두 정확한 역할어에 결속된 일반 fallback을 사용하며 CPO facet을 상속하지 않습니다.
 
@@ -70,10 +76,13 @@ Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credi
 회귀 fixture에서 다음을 확인합니다.
 
 - 정확한 CPO/CISO 직함 없이 개인정보 거버넌스 책임과 ISMS-P 성과가 있는 프로필이 전문근거 검색에서 최종 후보로 보존됨
+- 19년 개인정보·보안 경력과 ISMS-P/PIMS·PIA·AWS 복수 근거가 있지만 리더 직함이 없는 프로필은 `expanded`로 보존됨
+- 후보 본인에게 결속된 Privacy·AI 거버넌스 country leadership은 `expanded`로 보존됨
 - 자격증과 관심 주제만 있는 프로필은 인접 후보로 들어오지 않음
+- 자격증이 많아도 장기 직무경력 문장이 없거나 공유 글에만 근거가 있으면 확장 후보로 들어오지 않음
 - 10개 검색면에서 100개의 서로 다른 유효 URL이 들어오면 각 검색면이 5명씩 기여해 50명 cap을 구성함
 - 키워드별 metric은 정확한 역할어 검색의 기여만 집계해 전문근거 결과를 특정 역할어가 찾은 것처럼 오표기하지 않음
-- query별 metric은 역할어 검색과 facet 검색 각각의 raw, unique, direct/adjacent, Korea evidence tier, 최종 후보 수와 `evidenceFacetId`를 보존함
+- query별 metric은 역할어 검색과 facet 검색 각각의 raw, unique, direct/adjacent/expanded, Korea evidence tier, 최종 후보 수와 `evidenceFacetId`·`evidenceGate`를 보존함
 - 동일 프로필이 여러 검색면에서 반복될 때 발견 경로는 모두 남기되 같은 근거문장은 Gemini에 한 번만 전달함
 - 총 예약 및 실제 사용량은 10 credits로 유지됨
 
