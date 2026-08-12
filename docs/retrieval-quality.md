@@ -67,9 +67,9 @@ Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credi
 
 - `direct`: 프리셋의 역할군 직함이 후보 본인에게 결속됨
 - `adjacent`: 개인정보보호 책임과 ISMS-P·클라우드·사고대응·조직리딩 중 하나 이상의 실무 성과가 후보 본인에게 결속됨
-- `expanded`: 직함·기업 책임범위는 미확인이지만, 10년 이상 장기 개인정보·보안 경력과 ISMS-P를 포함한 복수 전문근거가 있거나 Privacy·AI 거버넌스 리더십이 후보 본인에게 결속됨
+- `expanded`: 직함·기업 책임범위는 미확인이지만, 10년 이상 장기 개인정보·보안 경력과 ISMS-P를 포함한 복수 전문근거가 후보 본인에게 결속되거나, 개인정보 전문기관의 공식 지명문이 후보 이름과 한국 Privacy·AI 거버넌스 역할을 함께 명시함
 
-`expanded` 후보는 사람이 먼저 사실관계를 확인하도록 점수를 49점 이하, coverage를 `Low`, 검증 상태를 `VERIFY`로 고정합니다. 자격증 보유, 주제 관심, 공유글, 채용공고만 있는 결과는 계속 제외합니다.
+`expanded` 후보는 사람이 먼저 사실관계를 확인하도록 점수를 49점 이하, coverage를 `Low`, 검증 상태를 `VERIFY`로 고정합니다. 일반 공유글은 계속 제외합니다. 공유 활동에서 제3자 근거를 보존하는 유일한 예외는 같은 근거 구간에 후보 이름, IAPP·KAPP 같은 개인정보 전문기관, 한국 역할, 임명·지정 표현, Privacy·AI 거버넌스 문맥이 모두 있는 경우입니다. 카드에는 이를 `공식 제3자 지정문`으로 따로 표시해 후보 본인의 경력 서술과 혼동하지 않습니다.
 
 새 역할 프리셋은 해당 역할에 맞는 facet을 명시적으로 정의해야 합니다. 아직 프리셋이 없는 커스텀 역할은 두 검색면 모두 정확한 역할어에 결속된 일반 fallback을 사용하며 CPO facet을 상속하지 않습니다.
 
@@ -80,6 +80,8 @@ Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credi
 - 정확한 CPO/CISO 직함 없이 개인정보 거버넌스 책임과 ISMS-P 성과가 있는 프로필이 전문근거 검색에서 최종 후보로 보존됨
 - 19년 개인정보·보안 경력과 ISMS-P/PIMS·PIA·AWS 복수 근거가 있지만 리더 직함이 없는 프로필은 `expanded`로 보존됨
 - 후보 본인에게 결속된 Privacy·AI 거버넌스 country leadership은 `expanded`로 보존됨
+- 공식 개인정보 전문기관이 후보 이름과 한국 country leadership을 함께 지명한 공개 문장은 `공식 제3자 지정문` `expanded`로 보존됨
+- 공식 문장이어도 다른 사람을 지명했거나 일반 공유글이면 프로필 소유자 근거로 귀속하지 않음
 - `정보보호센터장`과 개인정보·ISMS-P 문맥의 `Security Director`는 direct 역할군으로 보존됨
 - 동일한 `Security Director`라도 시설·경호·물리보안 문맥뿐이면 제외됨
 - 자격증과 관심 주제만 있는 프로필은 인접 후보로 들어오지 않음
@@ -108,7 +110,7 @@ Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credi
 
 ## 재현 가능한 비교 실행
 
-기준 URL과 실제 응답에는 공개 인물 프로필이 포함되므로 Git에 커밋하지 않습니다. 저장소에서 이미 무시하는 `qa/` 아래에 JSON을 두고, benchmark 출력에는 URL·이름 대신 기준 파일 순서에 따른 `R01`~`Rn`만 표시합니다.
+기준 URL과 실제 응답에는 공개 인물 프로필이 포함되므로 Git에 커밋하지 않습니다. 저장소에서 이미 무시하는 `qa/` 아래에 JSON을 두고, benchmark 출력에는 URL·이름 대신 기준 파일 순서에 따른 `R01`~`Rn`만 표시합니다. 회수된 익명 레퍼런스에는 `roleEvidenceLevel`, `evidenceBasis`, 점수·coverage, Korea evidence tier, 역할어/전문근거 lane과 실제 발견 경로를 남깁니다. 미회수 항목은 프로필 URL을 공개 응답에 새로 노출하지 않고 query별 raw→role-bound→final 집계와 함께 해석해 검색 공급자 누락인지 후보 gate 이후 손실인지 다음 live QA에서 좁힙니다.
 
 `qa/reference-urls.json`은 URL 문자열 배열 또는 `{ "references": [{ "url": "..." }] }` 형식입니다. `qa/search-request.json`은 화면에서 서버로 보내는 것과 같은 검색 조건입니다.
 

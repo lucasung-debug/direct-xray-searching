@@ -655,6 +655,16 @@ globalThis.fetch = async (url, init = {}) => {
           content: "Governance Community Leader is the Korea country leader for a privacy association focused on privacy governance and AI governance for Korean business.",
           score: 0.95,
         }, {
+          title: "Official Designation Candidate님 - Privacy Advisor | LinkedIn",
+          url: "https://www.linkedin.com/in/official-designation-candidate",
+          content: "⭐ Official Designation Candidate (South Korea) ⭐ Another Leader (India). The IAPP global network of country leaders connects local privacy, AI governance and digital responsibility communities.",
+          score: 0.945,
+        }, {
+          title: "Different Person Activity - Legal Counsel | LinkedIn",
+          url: "https://www.linkedin.com/in/different-person-activity",
+          content: "Different Person Activity shared this. IAPP welcomes Another Person (South Korea) as a country leader connecting privacy and AI governance communities.",
+          score: 0.942,
+        }, {
           title: "Privacy Article Sharer - Legal Counsel | LinkedIn",
           url: "https://www.linkedin.com/in/privacy-article-sharer",
           content: "Privacy Article Sharer shared this article about privacy and AI governance for Korean business.",
@@ -1282,9 +1292,20 @@ assert.deepEqual(seniorDomainReviewer.retrievalPaths, ["전문근거 · 장기 �
 const governanceCommunityLeader = candidateByName("Governance Community Leader");
 assert.ok(governanceCommunityLeader, "candidate-bound privacy and AI governance leadership remains reviewable without a corporate CPO title");
 assert.equal(governanceCommunityLeader.roleEvidenceLevel, "expanded");
+assert.equal(governanceCommunityLeader.evidenceBasis, "candidate_profile_multi_signal");
 assert.ok(governanceCommunityLeader.score <= 49);
 assert.deepEqual(governanceCommunityLeader.retrievalPaths, ["전문근거 · Privacy · AI 거버넌스 리더"]);
 assert.equal(governanceCommunityLeader.scoreBreakdown.reduce((sum, signal) => sum + signal.points, 0), governanceCommunityLeader.rawScore);
+const officialDesignationCandidate = candidateByName("Official Designation Candidate");
+assert.ok(officialDesignationCandidate, "a named privacy-organization designation remains reviewable even when it appears in public shared activity");
+assert.equal(officialDesignationCandidate.roleEvidenceLevel, "expanded");
+assert.equal(officialDesignationCandidate.evidenceBasis, "official_third_party_designation");
+assert.equal(officialDesignationCandidate.coverage, "Low");
+assert.ok(officialDesignationCandidate.score <= 49);
+assert.match(officialDesignationCandidate.summary, /Official Designation Candidate \(South Korea\).*IAPP.*country leaders.*privacy, AI governance/i);
+assert.match(officialDesignationCandidate.verify, /공식 기관이 후보를 지명한 제3자 지정문/);
+assert.deepEqual(officialDesignationCandidate.scoreBreakdown.map((signal) => signal.id), ["privacy_program", "people_leadership", "platform_data_context"]);
+assert.doesNotMatch(officialDesignationCandidate.summary, /퍼옴|shared this/i, "the card uses only the server-validated official designation excerpt, not the surrounding activity marker");
 const companyFieldCandidate = candidateByName("Company Field Candidate");
 assert.equal(companyFieldCandidate.koreaEvidenceLevel, "weak");
 assert.equal(companyFieldCandidate.koreaEvidence, "Seoul");
@@ -1338,6 +1359,7 @@ assert.doesNotMatch(JSON.stringify(search), /Physical Security Director|physical
 assert.doesNotMatch(JSON.stringify(search), /Credential Only Profile|credential-only-profile/, "credentials and topic interest without bound responsibility or outcome do not enter the adjacent review pool");
 assert.doesNotMatch(JSON.stringify(search), /Senior Credential Collector|senior-credential-collector/, "credential density without an explicit long professional career does not enter the expanded review pool");
 assert.doesNotMatch(JSON.stringify(search), /Privacy Article Sharer|privacy-article-sharer/, "shared privacy and AI governance content does not become candidate-bound leadership evidence");
+assert.doesNotMatch(JSON.stringify(search), /Different Person Activity|different-person-activity/, "an official designation for another named person is never attributed to the profile owner");
 assert.doesNotMatch(JSON.stringify(search.candidates), /shared this|좋아합니다|공유함/i, "shared-activity sentences cannot contribute candidate score evidence");
 assert.match(search.text, /현재 거주지는 필터링하지 않았으며 국적·시민권은 추론하지 않았습니다/);
 assert.doesNotMatch(JSON.stringify(search.candidates), /Prompt Injection Candidate/, "unbound model signals cannot create a scored candidate");
@@ -1714,12 +1736,12 @@ const benchmarkCurrent = evaluateRetrievalBenchmark({
   usageCredits: 10,
   latencyMs: 1234,
   candidates: [
-    { url: "https://www.linkedin.com/in/reference-one" },
-    { url: "https://kr.linkedin.com/in/reference-two/en?trk=public_profile" },
+    { url: "https://www.linkedin.com/in/reference-one", roleEvidenceLevel: "direct", evidenceBasis: "candidate_profile_role", coverage: "High", score: 82, koreaEvidenceLevel: "strong", matchedKeywords: ["CPO"], retrievalPaths: ["역할어 · CPO"] },
+    { url: "https://kr.linkedin.com/in/reference-two/en?trk=public_profile", roleEvidenceLevel: "expanded", evidenceBasis: "official_third_party_designation", coverage: "Low", score: 39, koreaEvidenceLevel: "strong", matchedKeywords: [], retrievalPaths: ["전문근거 · Privacy · AI 거버넌스 리더"] },
   ],
   sources: [
-    { uri: "https://linkedin.com/in/reference-one/" },
-    { uri: "https://www.linkedin.com/in/reference-two" },
+    { uri: "https://linkedin.com/in/reference-one/", roleEvidenceLevel: "direct", evidenceBasis: "candidate_profile_role", retrievalLanes: ["role_identity"], retrievalPaths: ["역할어 · CPO"], matchedRoleTerms: ["CPO"], koreaEvidenceLevel: "strong" },
+    { uri: "https://www.linkedin.com/in/reference-two", roleEvidenceLevel: "expanded", evidenceBasis: "official_third_party_designation", retrievalLanes: ["professional_evidence"], retrievalPaths: ["전문근거 · Privacy · AI 거버넌스 리더"], matchedRoleTerms: [], koreaEvidenceLevel: "strong" },
   ],
   queryMetrics: [
     { queryId: "cpo:role_identity", keyword: "CPO", lane: "role_identity", rawResultCount: 10, uniqueProfileCount: 8, roleMatchedProfileCount: 4, finalAcceptedCandidateCount: 1 },
@@ -1727,11 +1749,45 @@ const benchmarkCurrent = evaluateRetrievalBenchmark({
   ],
   keywordMetrics: [{ keyword: "CPO", rawResultCount: 20, uniqueProfileCount: 17, roleMatchedProfileCount: 9, finalAcceptedCandidateCount: 2 }],
 }, benchmarkReference);
-assert.equal(benchmarkCurrent.schemaVersion, 3);
+assert.equal(benchmarkCurrent.schemaVersion, 4);
 assert.equal(benchmarkCurrent.reference.matched, 2);
 assert.equal(benchmarkCurrent.reference.recallAtReviewPool, 2 / 3);
 assert.equal(benchmarkCurrent.pool.sourceToCardPreservationRate, 1);
 assert.equal(benchmarkCurrent.acceptance.passed, true);
+assert.deepEqual(benchmarkCurrent.reference.results, [{
+  id: "R01",
+  hit: true,
+  roleEvidenceLevel: "direct",
+  evidenceBasis: "candidate_profile_role",
+  coverage: "High",
+  score: 82,
+  koreaEvidenceLevel: "strong",
+  retrievalLanes: ["role_identity"],
+  retrievalPaths: ["역할어 · CPO"],
+  matchedRoleTerms: ["CPO"],
+}, {
+  id: "R02",
+  hit: true,
+  roleEvidenceLevel: "expanded",
+  evidenceBasis: "official_third_party_designation",
+  coverage: "Low",
+  score: 39,
+  koreaEvidenceLevel: "strong",
+  retrievalLanes: ["professional_evidence"],
+  retrievalPaths: ["전문근거 · Privacy · AI 거버넌스 리더"],
+  matchedRoleTerms: [],
+}, {
+  id: "R03",
+  hit: false,
+  roleEvidenceLevel: null,
+  evidenceBasis: null,
+  coverage: null,
+  score: null,
+  koreaEvidenceLevel: null,
+  retrievalLanes: [],
+  retrievalPaths: [],
+  matchedRoleTerms: [],
+}]);
 assert.deepEqual(benchmarkCurrent.queryCoverage[1], {
   id: "facet:privacy_governance_outcomes",
   keyword: "CPO",
