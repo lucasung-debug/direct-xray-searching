@@ -630,6 +630,21 @@ globalThis.fetch = async (url, init = {}) => {
         content: "Adjacent Privacy Specialist leads Korea privacy governance, ISMS-P audit response, and team leadership without a public executive title.",
         score: 0.89,
       }, {
+        title: "Certification Context Candidate - Privacy Consultant | LinkedIn",
+        url: "https://www.linkedin.com/in/certification-context-candidate",
+        content: "Certification Context Candidate holds CISO-CQ certification. Certification Context Candidate leads a Korea privacy program, AWS cloud governance, incident response, ISMS-P audit, team leadership, and platform security.",
+        score: 0.94,
+      }, {
+        title: "Discussion Context Candidate - Security Consultant | LinkedIn",
+        url: "https://www.linkedin.com/in/discussion-context-candidate",
+        content: "Discussion Context Candidate leads a Korea privacy program, AWS cloud governance, incident response, ISMS-P audit, team leadership, and platform security. Discussion Context Candidate님이 좋아합니다. AI 시대, CISO는 머리 역할을 통해 변화를 선도해야 합니다.",
+        score: 0.93,
+      }, {
+        title: "Mixed Identity Candidate - CISO · ISMS-P 심사원 | LinkedIn",
+        url: "https://www.linkedin.com/in/mixed-identity-candidate",
+        content: "Mixed Identity Candidate serves as CISO and leads a Korea privacy program, AWS cloud governance, incident response, ISMS-P audit, team leadership, and platform security.",
+        score: 0.92,
+      }, {
         title: "Product Executive - CPO, Chief Product Officer | LinkedIn",
         url: "https://www.linkedin.com/in/product-executive-cpo",
         content: "Product Executive owns the Korea market product roadmap, portfolio strategy, and product operations.",
@@ -1150,6 +1165,18 @@ assert.ok(adjacentCandidate, "a privacy specialist with multiple operational sig
 assert.equal(adjacentCandidate.roleEvidenceLevel, "adjacent");
 assert.deepEqual(adjacentCandidate.matchedKeywords, []);
 assert.match(adjacentCandidate.verify, /직접 역할어 미확인/);
+const certificationContextCandidate = candidateByName("Certification Context Candidate");
+assert.ok(certificationContextCandidate, "a certification mention can support review without being mistaken for the candidate's current role");
+assert.equal(certificationContextCandidate.roleEvidenceLevel, "adjacent");
+assert.deepEqual(certificationContextCandidate.matchedKeywords, []);
+const discussionContextCandidate = candidateByName("Discussion Context Candidate");
+assert.ok(discussionContextCandidate, "a candidate with relevant professional evidence remains reviewable when a role term appears only in shared content");
+assert.equal(discussionContextCandidate.roleEvidenceLevel, "adjacent");
+assert.deepEqual(discussionContextCandidate.matchedKeywords, []);
+const mixedIdentityCandidate = candidateByName("Mixed Identity Candidate");
+assert.ok(mixedIdentityCandidate, "an actual CISO headline remains direct evidence even when a separate auditor credential is present");
+assert.equal(mixedIdentityCandidate.roleEvidenceLevel, "direct");
+assert.ok(mixedIdentityCandidate.matchedKeywords.includes("CISO"));
 const companyFieldCandidate = candidateByName("Company Field Candidate");
 assert.equal(companyFieldCandidate.koreaEvidenceLevel, "weak");
 assert.equal(companyFieldCandidate.koreaEvidence, "Seoul");
