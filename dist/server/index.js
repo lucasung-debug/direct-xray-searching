@@ -533,17 +533,24 @@ const DIRECT_XRAY_PRESETS = Object.freeze({
       "Head of Data Protection",
       "Chief Information Security Officer",
       "Head of Information Security",
+      "Information Security Director",
+      "Security Director",
+      "Head of Security",
       "개인정보보호 총괄",
       "정보보호 최고책임자",
       "정보보호책임자",
       "정보보호팀장",
+      "정보보호센터장",
+      "정보보호부문장",
+      "보안센터장",
+      "보안부문장",
       "보안실장",
     ]),
     evidenceRetrievalFacets: Object.freeze([
-      Object.freeze({ id: "privacy_governance_outcomes", label: "개인정보보호 · 거버넌스 성과", query: "LinkedIn profile Korea privacy governance incident regulatory ISMS-P leader", evidenceGate: "adjacent_responsibility" }),
-      Object.freeze({ id: "security_org_leadership", label: "정보보호 조직 · 센터·부문 리딩", query: "LinkedIn profile Korea information security center director 개인정보 ISMS-P", evidenceGate: "adjacent_responsibility" }),
-      Object.freeze({ id: "platform_cloud_leadership", label: "플랫폼 · 클라우드 보안 리딩", query: "LinkedIn profile Korea platform cloud security director AWS privacy", evidenceGate: "adjacent_responsibility" }),
-      Object.freeze({ id: "senior_domain_evidence", label: "장기 경력 · ISMS-P · PIA", query: "LinkedIn profile Korea information security privacy experience ISMS-P PIA", evidenceGate: "senior_multi_signal" }),
+      Object.freeze({ id: "privacy_governance_outcomes", label: "개인정보보호 · 거버넌스 성과", query: "LinkedIn profile Korea 개인정보보호 거버넌스 ISMS-P 사고대응 총괄", evidenceGate: "adjacent_responsibility" }),
+      Object.freeze({ id: "security_org_leadership", label: "정보보호 조직 · 센터·부문 리딩", query: "LinkedIn profile Korea 정보보호센터장 개인정보 ISMS-P", evidenceGate: "adjacent_responsibility" }),
+      Object.freeze({ id: "platform_cloud_leadership", label: "플랫폼 · 클라우드 보안 리딩", query: "LinkedIn profile Korea Security Director platform AWS 개인정보 ISMS-P", evidenceGate: "adjacent_responsibility" }),
+      Object.freeze({ id: "senior_domain_evidence", label: "장기 경력 · ISMS-P · PIA", query: "LinkedIn profile 정보보호 개인정보 경력 10년 ISMS-P PIA AWS", evidenceGate: "senior_multi_signal" }),
       Object.freeze({ id: "privacy_ai_governance", label: "Privacy · AI 거버넌스 리더", query: "LinkedIn profile Korea privacy AI governance leader PIPA", evidenceGate: "governance_leadership" }),
     ]),
     fields: Object.freeze({
@@ -2000,12 +2007,19 @@ function sourceContainsSpecificSearchKeyword(sourceText, keyword) {
     "privacy lead": /(?:^|[^a-z0-9])privacy\s+lead(?:$|[^a-z0-9])/i,
     "head of data protection": /(?:^|[^a-z0-9])head\s+of\s+data\s+protection(?:$|[^a-z0-9])/i,
     "head of information security": /(?:^|[^a-z0-9])head\s+of\s+information\s+security(?:$|[^a-z0-9])/i,
+    "information security director": /(?:^|[^a-z0-9])information\s+security\s+director(?:$|[^a-z0-9])/i,
+    "security director": /(?:^|[^a-z0-9])security\s+director(?:$|[^a-z0-9])/i,
+    "head of security": /(?:^|[^a-z0-9])head\s+of\s+security(?:$|[^a-z0-9])/i,
     "개인정보보호책임자": /개인정보\s*보호\s*책임자/i,
     "개인정보보호 총괄": /개인정보\s*보호\s*총괄/i,
     "정보보호 최고책임자": /정보\s*보호\s*최고\s*책임자/i,
     "정보보호책임자": /정보\s*보호\s*책임자/i,
     "정보보호팀장": /정보\s*보호\s*팀장/i,
+    "정보보호센터장": /정보\s*보호\s*센터장/i,
+    "정보보호부문장": /정보\s*보호\s*부문장/i,
     "정보보호실장": /정보\s*보호\s*실장/i,
+    "보안센터장": /보안\s*센터장/i,
+    "보안부문장": /보안\s*부문장/i,
     "보안실장": /보안\s*실장/i,
   };
   if (Object.hasOwn(aliases, normalizedKeyword)) return aliases[normalizedKeyword].test(normalizedSource);
@@ -2021,7 +2035,15 @@ function sourceContainsSearchKeyword(sourceText, input) {
 }
 
 function sourceRoleFamilyTerms(title, content, input) {
-  return roleFamilyTermsFor(input).filter((term) => sourceContainsCandidateRoleKeyword(title, content, term));
+  const signalProfile = searchEvaluationProfileFor(input);
+  const sourceText = String(title || "") + " " + String(content || "");
+  const terms = roleFamilyTermsFor(input).filter((term) => sourceContainsCandidateRoleKeyword(title, content, term));
+  if (signalProfile.id !== "privacy_security" || !terms.length) return terms;
+  const hasDomainContext = CPO_PRIVACY_CONTEXT_PATTERN.test(sourceText)
+    || SEARCH_SIGNAL_PATTERNS.isms_audit.test(sourceText)
+    || SEARCH_SIGNAL_PATTERNS.cloud_security_governance.test(sourceText)
+    || SEARCH_SIGNAL_PATTERNS.incident_regulatory_response.test(sourceText);
+  return hasDomainContext ? terms : [];
 }
 
 const NON_CANDIDATE_ROLE_CONTEXT_PATTERN = /(?:open\s+position|job\s+(?:opening|posting)|we(?:'re|\s+are)\s+hiring|hiring\s+for|recruiting\s+for|채용|모집|구인|지원\s*바랍니다|올린\s*사람|추천한\s*사람|좋아요\s*표시함|좋아합니다|공유함|공유했습니다|퍼옴|댓글을\s*남겼습니다|게시했습니다|reposted|shared\s+(?:by|this)|recommended\s+by|liked\s+by|likes\s+this|commented\s+on\s+this|posted\s+this)/i;
