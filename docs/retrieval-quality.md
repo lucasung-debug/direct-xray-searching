@@ -28,7 +28,7 @@ v20→v23에서 Gemini가 구조화하지 않은 소스를 서버 근거로 복�
 
 현재 방식은 검색 10회의 예산을 다음처럼 사용합니다.
 
-1. `role_identity`: 정확한 역할어 + LinkedIn people profile + 직무 시장 문맥
+1. `role_identity`: 정확한 역할어 + LinkedIn people profile + 프리셋이 역할어별로 선언한 짧은 직무 문맥
 2. `professional_evidence`: CPO 프리셋이 소유한 서로 다른 책임·성과 facet
 
 CPO 프리셋의 전문근거 facet은 기준 후보군의 공개 신호 유형에 맞춰 다음 다섯 가지로 구성합니다.
@@ -40,6 +40,18 @@ CPO 프리셋의 전문근거 facet은 기준 후보군의 공개 신호 유형�
 - Privacy·AI 거버넌스 리더십
 
 공개 웹 인덱스 표본에서는 영어 설명형 query보다 `정보보호센터장`, `개인정보보호`, `경력 10년`처럼 실제 한국어 프로필에 쓰이는 표현이 레퍼런스형 후보를 더 직접적으로 드러냈습니다. 따라서 한국어/영어 직무 용어를 facet 목적에 맞춰 섞고, `정보보호센터장`·`정보보호부문장`·`Security Director`를 CPO 프리셋 역할군에 추가했습니다. 단, 물리보안·시설보안처럼 개인정보·정보보호·ISMS·cloud 문맥이 없는 동일 직함은 direct 근거로 인정하지 않습니다.
+
+정확 역할어 lane도 단순히 `"CPO" + Korea`로 두지 않습니다. 이 형태는 Chief Product Officer 등 동음이의 프로필이 Tavily의 상위 결과 칸을 소모할 수 있습니다. CPO 프리셋은 각 역할어에 다음처럼 짧은 identity context를 소유합니다.
+
+| 역할어 | identity context |
+|---|---|
+| 개인정보보호책임자 | Korea · 개인정보보호 · privacy · CPO |
+| CPO | Korea · Chief Privacy Officer · privacy · 개인정보보호 |
+| CISO | Korea · information security · privacy · 개인정보보호 |
+| Head of Privacy | Korea · privacy · data protection · 개인정보보호 |
+| 정보보호실장 | Korea · 정보보호 · 개인정보보호 · security leadership |
+
+이 문맥은 retrieval 정밀도를 위한 검색어일 뿐 채용 적합 판정이나 hard gate가 아닙니다. 새 역할 프리셋은 자기 `identityRetrievalContexts`와 evidence facet을 함께 선언할 수 있고, 커스텀 역할은 사용자가 입력한 업무 문맥만 사용해 CPO 프리셋 지식을 상속하지 않습니다.
 
 ```text
 5 exact-role queries + 5 preset evidence-facet queries
