@@ -598,7 +598,7 @@ globalThis.fetch = async (url, init = {}) => {
     }
     assert.doesNotMatch(capturedTavilyBody.query, /Prioritize|Do not infer|Candidates may currently/i, "Tavily receives a short search query rather than policy prose");
     assert.doesNotMatch(capturedTavilyBody.query, /currently based in South Korea/i);
-    assert.doesNotMatch(capturedTavilyBody.query, /10년|SaaS/i, "free-form JD evaluation criteria must not leak into retrieval queries");
+    assert.doesNotMatch(capturedTavilyBody.query, /SaaS/i, "free-form JD evaluation criteria must not leak into retrieval queries");
     if (networkFailureProvider === "tavily") throw new TypeError("network");
     if (forceTavilyStatus) return new Response(JSON.stringify({ detail: { error: "upstream detail must not leak" } }), { status: forceTavilyStatus, headers: { "content-type": "application/json" } });
     if (tavilyResponseMode === "empty_object") return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
@@ -621,13 +621,13 @@ globalThis.fetch = async (url, init = {}) => {
       usage: { credits: 1 },
       request_id: "fixture-request-id",
       results: [
-        ...(/information security center director/i.test(capturedTavilyBody.query) ? [{
+        ...(/정보보호센터장 개인정보 ISMS-P/i.test(capturedTavilyBody.query) ? [{
           title: "Evidence Lane Candidate - CISO at Korea Platform | LinkedIn",
           url: "https://www.linkedin.com/in/evidence-lane-candidate",
           content: "Evidence Lane Candidate serves as CISO and leads a Korea privacy program, AWS cloud governance, incident response, ISMS-P audit, team leadership, and platform security.",
           score: 0.99,
         }] : []),
-        ...(/privacy governance incident regulatory ISMS-P leader/i.test(capturedTavilyBody.query) ? [{
+        ...(/개인정보보호 거버넌스 ISMS-P 사고대응 총괄/i.test(capturedTavilyBody.query) ? [{
           title: "Outcome Privacy Leader - Information Security Executive | LinkedIn",
           url: "https://www.linkedin.com/in/outcome-privacy-leader",
           content: "Outcome Privacy Leader led Korea privacy governance, established an information security committee, and spearheaded the first ISMS-P certification across a large partner ecosystem.",
@@ -638,7 +638,7 @@ globalThis.fetch = async (url, init = {}) => {
           content: "Credential Only Profile holds CPPG and an ISMS-P auditor certification and is interested in 개인정보보호.",
           score: 0.96,
         }] : []),
-        ...(/information security privacy experience ISMS-P PIA/i.test(capturedTavilyBody.query) ? [{
+        ...(/정보보호 개인정보 경력 10년 ISMS-P PIA AWS/i.test(capturedTavilyBody.query) ? [{
           title: "Senior Domain Reviewer - Information Security & Privacy Professional | LinkedIn",
           url: "https://www.linkedin.com/in/senior-domain-reviewer",
           content: "Senior Domain Reviewer has 19 years 9 months of information security and privacy experience for Korean business, serves as an ISMS-P and PIMS auditor, and holds CPPG, PIA and AWS SAA credentials.",
@@ -691,6 +691,21 @@ globalThis.fetch = async (url, init = {}) => {
         url: "https://www.linkedin.com/in/mixed-identity-candidate",
         content: "Mixed Identity Candidate serves as CISO and leads a Korea privacy program, AWS cloud governance, incident response, ISMS-P audit, team leadership, and platform security.",
         score: 0.92,
+      }, {
+        title: "Korean Center Leader - 정보보호센터장 | LinkedIn",
+        url: "https://www.linkedin.com/in/korean-center-leader",
+        content: "Korean Center Leader는 정보보호센터장으로 한국 개인정보보호 및 ISMS-P 조직을 총괄한다.",
+        score: 0.91,
+      }, {
+        title: "Global Security Leader - Security Director | LinkedIn",
+        url: "https://www.linkedin.com/in/global-security-leader",
+        content: "Global Security Leader serves as Security Director and leads Korea privacy governance, AWS cloud security and ISMS-P operations for a global platform.",
+        score: 0.91,
+      }, {
+        title: "Physical Security Director - Security Director | LinkedIn",
+        url: "https://www.linkedin.com/in/physical-security-director",
+        content: "Physical Security Director serves as Security Director for facilities, executive protection and workplace safety in Korea.",
+        score: 0.91,
       }, {
         title: "Product Executive - CPO, Chief Product Officer | LinkedIn",
         url: "https://www.linkedin.com/in/product-executive-cpo",
@@ -1235,6 +1250,14 @@ const mixedIdentityCandidate = candidateByName("Mixed Identity Candidate");
 assert.ok(mixedIdentityCandidate, "an actual CISO headline remains direct evidence even when a separate auditor credential is present");
 assert.equal(mixedIdentityCandidate.roleEvidenceLevel, "direct");
 assert.ok(mixedIdentityCandidate.matchedKeywords.includes("CISO"));
+const koreanCenterLeader = candidateByName("Korean Center Leader");
+assert.ok(koreanCenterLeader, "a Korean information-security center-head title in the preset role family is retained as direct evidence");
+assert.equal(koreanCenterLeader.roleEvidenceLevel, "direct");
+assert.deepEqual(koreanCenterLeader.matchedKeywords, ["정보보호센터장"]);
+const globalSecurityLeader = candidateByName("Global Security Leader");
+assert.ok(globalSecurityLeader, "Security Director is treated as a direct preset role only when the candidate-bound profile also carries privacy/security evidence");
+assert.equal(globalSecurityLeader.roleEvidenceLevel, "direct");
+assert.deepEqual(globalSecurityLeader.matchedKeywords, ["Security Director"]);
 const evidenceLaneCandidate = candidateByName("Evidence Lane Candidate");
 assert.ok(evidenceLaneCandidate, "a profile found only by the professional-evidence lane survives URL union, validation, and final pool selection");
 const evidenceLaneSource = search.sources.find((source) => source.uri === "https://www.linkedin.com/in/evidence-lane-candidate");
@@ -1311,6 +1334,7 @@ assert.match(JSON.stringify(search), /Kansas False Positive/, "a generic oversea
 assert.doesNotMatch(JSON.stringify(search), /Recruiter Profile/, "a role keyword found only inside a recruiter job post must not be attributed to the profile owner");
 assert.doesNotMatch(JSON.stringify(search), /Recruiter Title Job Post|recruiter-title-job-post/, "a job-post role keyword in a search-result title must not be attributed to the profile owner");
 assert.doesNotMatch(JSON.stringify(search), /Product Executive|product-executive-cpo/, "ambiguous CPO abbreviations for product roles are not treated as Chief Privacy Officer evidence");
+assert.doesNotMatch(JSON.stringify(search), /Physical Security Director|physical-security-director/, "physical-security leadership without information-security or privacy context is not treated as a CPO preset role");
 assert.doesNotMatch(JSON.stringify(search), /Credential Only Profile|credential-only-profile/, "credentials and topic interest without bound responsibility or outcome do not enter the adjacent review pool");
 assert.doesNotMatch(JSON.stringify(search), /Senior Credential Collector|senior-credential-collector/, "credential density without an explicit long professional career does not enter the expanded review pool");
 assert.doesNotMatch(JSON.stringify(search), /Privacy Article Sharer|privacy-article-sharer/, "shared privacy and AI governance content does not become candidate-bound leadership evidence");

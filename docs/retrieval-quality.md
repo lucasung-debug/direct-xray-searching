@@ -39,6 +39,8 @@ CPO 프리셋의 전문근거 facet은 기준 후보군의 공개 신호 유형�
 - 장기 개인정보·정보보호 경력과 ISMS-P·PIA 복수 근거
 - Privacy·AI 거버넌스 리더십
 
+공개 웹 인덱스 표본에서는 영어 설명형 query보다 `정보보호센터장`, `개인정보보호`, `경력 10년`처럼 실제 한국어 프로필에 쓰이는 표현이 레퍼런스형 후보를 더 직접적으로 드러냈습니다. 따라서 한국어/영어 직무 용어를 facet 목적에 맞춰 섞고, `정보보호센터장`·`정보보호부문장`·`Security Director`를 CPO 프리셋 역할군에 추가했습니다. 단, 물리보안·시설보안처럼 개인정보·정보보호·ISMS·cloud 문맥이 없는 동일 직함은 direct 근거로 인정하지 않습니다.
+
 ```text
 5 exact-role queries + 5 preset evidence-facet queries
 = 10 basic queries × 1 credit = 10 credits
@@ -78,6 +80,8 @@ Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credi
 - 정확한 CPO/CISO 직함 없이 개인정보 거버넌스 책임과 ISMS-P 성과가 있는 프로필이 전문근거 검색에서 최종 후보로 보존됨
 - 19년 개인정보·보안 경력과 ISMS-P/PIMS·PIA·AWS 복수 근거가 있지만 리더 직함이 없는 프로필은 `expanded`로 보존됨
 - 후보 본인에게 결속된 Privacy·AI 거버넌스 country leadership은 `expanded`로 보존됨
+- `정보보호센터장`과 개인정보·ISMS-P 문맥의 `Security Director`는 direct 역할군으로 보존됨
+- 동일한 `Security Director`라도 시설·경호·물리보안 문맥뿐이면 제외됨
 - 자격증과 관심 주제만 있는 프로필은 인접 후보로 들어오지 않음
 - 자격증이 많아도 장기 직무경력 문장이 없거나 공유 글에만 근거가 있으면 확장 후보로 들어오지 않음
 - 10개 검색면에서 100개의 서로 다른 유효 URL이 들어오면 각 검색면이 5명씩 기여해 50명 cap을 구성함

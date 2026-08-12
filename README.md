@@ -34,11 +34,12 @@ flowchart LR
 ## Core behavior
 
 - **Extensible presets**: 현재 CPO 테스트 프리셋은 역할어와 검증된 전문근거 검색면을 함께 소유합니다. 다른 역할은 자기 역할어·평가 신호·전문근거 검색면을 별도 프리셋으로 추가할 수 있으며, 커스텀 검색에는 CPO 지식을 임의로 적용하지 않습니다.
-- **Role + evidence retrieval**: 정확한 역할어 검색 5회와 프리셋 전문근거 검색 5회를 같은 10 credits 안에서 합칩니다. CPO 프리셋은 거버넌스 성과, 정보보호 조직장, 플랫폼·클라우드 리더, 장기 개인정보·보안 경력, Privacy·AI 거버넌스 리더 유형을 각각 탐색합니다.
+- **Role + evidence retrieval**: 정확한 역할어 검색 5회와 프리셋 전문근거 검색 5회를 같은 10 credits 안에서 합칩니다. CPO 프리셋은 한국어 직함·업무 표현을 포함해 거버넌스 성과, 정보보호 조직장, 플랫폼·클라우드 리더, 장기 개인정보·보안 경력, Privacy·AI 거버넌스 리더 유형을 각각 탐색합니다.
 - **Evidence-preserving pool**: Gemini 출력이 후보 풀의 membership gate가 되지 않습니다. 구조화 실패 시 서버가 검색 원문에 결속된 후보를 복구합니다.
 - **Three evidence tiers**: 실제 CPO/CISO 직함은 `direct`, 개인정보·보안 책임·성과는 `adjacent`, 직함은 없지만 장기 경력과 복수 전문근거 또는 Privacy·AI 거버넌스 리더십이 후보 본인에게 결속되면 `expanded`로 표시합니다. `expanded`는 49점 상한과 `Low/VERIFY`를 적용하며 자격증 나열이나 공유 글만으로는 들어오지 않습니다.
 - **Truthful discovery labels**: 카드에는 실제로 발견된 `전문근거 · …` 경로와 프로필 원문에서 확인된 역할어를 분리해 표시합니다. 전문근거 검색으로 찾은 사람을 CPO 키워드 검색 결과로 오표기하지 않습니다.
 - **Context-aware role matching**: `CISO-CQ 자격`, 기사 주제, 좋아요·공유 활동을 현재 직함으로 오인하지 않습니다.
+- **Role-family recall without domain drift**: `정보보호센터장`, `정보보호부문장`, `Security Director` 등 레퍼런스에 나타난 인접 리더 직함을 역할군으로 회수하되, 개인정보·정보보호·ISMS·cloud 근거가 없는 물리보안 직함은 제외합니다.
 - **Korea professional relevance**: 한국 업무·규제·시장 근거를 보되 현재 거주지는 필터링하지 않고, 이름이나 위치로 국적·시민권을 추론하지 않습니다.
 - **Ephemeral search**: 자동 검색 후보는 서버에 영구 저장하지 않습니다.
 
