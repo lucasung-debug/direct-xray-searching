@@ -315,7 +315,7 @@ assert.equal(mergeSandbox.candidates[0].retrievalScore, 93);
 assert.equal(mergeSandbox.candidates[0].sources.length, 2);
 assert.deepEqual(Array.from(mergeSandbox.candidates[0].matchedKeywords), ["CPO", "Head of Privacy"]);
 assert.equal(mergeSandbox.candidates[0].scoreNote, "사람이 입력한 참고점수 · 아래는 자동 검색에서 확인된 직무 신호");
-assert.deepEqual(Array.from(mergeSandbox.candidates[0].scoreBreakdown, (signal) => ({ ...signal })), [{ id: "privacy_program", label: "개인정보 프로그램", keyword: "privacy program", points: 22 }]);
+assert.deepEqual(Array.from(mergeSandbox.candidates[0].scoreBreakdown, (signal) => ({ ...signal })), [{ id: "privacy_program", label: "개인정보 프로그램", keyword: "privacy program", strength: "clue", strengthLabel: "확인할 단서", points: 22, maxPoints: 22 }]);
 assert.equal(mergeSandbox.candidates[1].id, "auto-1");
 assert.equal(mergeSandbox.candidates[1].name, "Fresh Auto");
 assert.equal(mergeSandbox.candidates[1].score, 88);
@@ -325,7 +325,7 @@ assert.equal(mergeSandbox.candidates[1].koreaEvidenceLevel, "strong");
 assert.equal(mergeSandbox.candidates[1].retrievalScore, 87);
 assert.equal(mergeSandbox.candidates[1].sources.length, 2);
 assert.equal(mergeSandbox.candidates[1].rawScore, 88);
-assert.deepEqual(Array.from(mergeSandbox.candidates[1].scoreBreakdown, (signal) => ({ ...signal })), [{ id: "executive_privacy_governance", label: "CPO 거버넌스", keyword: "CPO", points: 20 }]);
+assert.deepEqual(Array.from(mergeSandbox.candidates[1].scoreBreakdown, (signal) => ({ ...signal })), [{ id: "executive_privacy_governance", label: "CPO 거버넌스", keyword: "CPO", strength: "clue", strengthLabel: "확인할 단서", points: 20, maxPoints: 20 }]);
 assert.equal(mergeSandbox.candidates[2].koreaEvidence, "ISMS-P");
 
 const sortSandbox = {
@@ -643,6 +643,16 @@ globalThis.fetch = async (url, init = {}) => {
           url: "https://www.linkedin.com/in/senior-domain-reviewer",
           content: "Senior Domain Reviewer has 19 years 9 months of information security and privacy experience for Korean business, serves as an ISMS-P and PIMS auditor, and holds CPPG, PIA and AWS SAA credentials.",
           score: 0.95,
+        }, {
+          title: "Operational Evidence Leader - Information Security Director | LinkedIn",
+          url: "https://www.linkedin.com/in/operational-evidence-leader",
+          content: "Operational Evidence Leader led a Korea privacy program, owned AWS IAM, logging, encryption and backup controls, managed ISMS-P certification scope and finding remediation, and hired and evaluated a security team.",
+          score: 0.947,
+        }, {
+          title: "Title Only Director - Information Security Director | LinkedIn",
+          url: "https://www.linkedin.com/in/title-only-director",
+          content: "Title Only Director has Korea privacy experience and holds AWS SAA and ISMS-P auditor credentials.",
+          score: 0.946,
         }, {
           title: "Senior Credential Collector - Security Student | LinkedIn",
           url: "https://www.linkedin.com/in/senior-credential-collector",
@@ -1230,12 +1240,16 @@ const candidateByName = (name) => search.candidates.find((candidate) => candidat
 const testPrivacyLeader = candidateByName("Test Privacy Leader");
 assert.ok(testPrivacyLeader);
 assert.equal(testPrivacyLeader.url, "https://www.linkedin.com/in/test-privacy-leader");
-assert.equal(testPrivacyLeader.score, 84);
-assert.equal(testPrivacyLeader.rawScore, 84);
-assert.equal(testPrivacyLeader.scoreNote, "공개 원문의 키워드·직무 신호 배점 합계");
-assert.equal(testPrivacyLeader.scoreBreakdown.reduce((sum, signal) => sum + signal.points, 0), 84);
+assert.equal(testPrivacyLeader.score, 39);
+assert.equal(testPrivacyLeader.rawScore, 39);
+assert.equal(testPrivacyLeader.scoreNote, "책임·성과 1개 · 확인할 단서 5개");
+assert.equal(testPrivacyLeader.scoreBreakdown.reduce((sum, signal) => sum + signal.points, 0), 39);
 assert.deepEqual(testPrivacyLeader.scoreBreakdown.map((signal) => signal.label), ["CPO 거버넌스", "개인정보 프로그램", "클라우드 보안", "ISMS 심사", "조직 리딩", "플랫폼·데이터"]);
-assert.deepEqual(testPrivacyLeader.scoreBreakdown.map((signal) => signal.keyword.toLowerCase()), ["ciso", "privacy program", "aws", "isms-p", "team leadership", "platform"]);
+assert.deepEqual(testPrivacyLeader.scoreBreakdown.map((signal) => signal.keyword.toLowerCase()), ["cpo", "data inventory", "aws", "isms-p", "team leadership", "platform"]);
+assert.deepEqual(testPrivacyLeader.scoreBreakdown.map((signal) => signal.strength), ["clue", "responsibility", "clue", "clue", "clue", "clue"]);
+assert.deepEqual(testPrivacyLeader.scoreBreakdown.map((signal) => signal.points), [5, 22, 4, 3, 3, 2]);
+assert.deepEqual(testPrivacyLeader.scoreBreakdown.map((signal) => signal.maxPoints), [20, 22, 15, 10, 10, 7]);
+assert.match(testPrivacyLeader.verify, /직함·자격·용어 단서 5개/);
 assert.equal(testPrivacyLeader.retrievalScore, 91);
 assert.equal(testPrivacyLeader.source, "tavily_linkedin_gemini_json_schema");
 assert.equal(testPrivacyLeader.evidenceOrigin, "gemini_structured_evidence");
@@ -1243,6 +1257,9 @@ assert.equal(testPrivacyLeader.roleEvidenceLevel, "direct");
 assert.deepEqual(testPrivacyLeader.sources, [{ uri: "https://www.linkedin.com/in/test-privacy-leader", title: "Test Privacy Leader - CISO / CPO at Example Platform | LinkedIn" }]);
 assert.deepEqual(testPrivacyLeader.matchedKeywords, ["CISO", "CPO"], "only role keywords actually present in the source are attributed to a candidate");
 assert.equal(testPrivacyLeader.koreaEvidenceLevel, "strong");
+const testPrivacySource = search.sources.find((source) => source.uri === testPrivacyLeader.url);
+assert.ok(testPrivacySource);
+assert.deepEqual(testPrivacySource.professionalSignalEvidence.map((signal) => Object.keys(signal).sort()), testPrivacySource.professionalSignalEvidence.map(() => ["id", "keyword", "strength"]), "public source diagnostics expose strength and trigger keyword without copying extra profile excerpts");
 const protectedCandidate = candidateByName("Protected Candidate");
 assert.equal(protectedCandidate.summary, "Protected Candidate runs a 개인정보보호 program.");
 assert.equal(protectedCandidate.koreaEvidence, "개인정보보호");
@@ -1297,6 +1314,30 @@ assert.match(seniorDomainReviewer.scoreNote, /확장 검토근거/);
 assert.match(seniorDomainReviewer.verify, /기업 책임범위 미확인/);
 assert.deepEqual(seniorDomainReviewer.matchedKeywords, []);
 assert.deepEqual(seniorDomainReviewer.retrievalPaths, ["전문근거 · 장기 경력 · ISMS-P · PIA"]);
+const seniorDomainSignalMap = new Map(seniorDomainReviewer.scoreBreakdown.map((signal) => [signal.id, signal]));
+assert.equal(seniorDomainSignalMap.get("cloud_security_governance").strength, "clue", "AWS SAA is a cloud clue, not proof of operating AWS controls");
+assert.equal(seniorDomainSignalMap.get("isms_audit").strength, "clue", "an ISMS-P/PIMS auditor designation is not proof of owning a corporate certification cycle");
+assert.equal(seniorDomainSignalMap.get("cloud_security_governance").points, 4);
+assert.equal(seniorDomainSignalMap.get("isms_audit").points, 3);
+assert.ok(search.candidates.some((candidate) => candidate.name === "Operational Evidence Leader"), "explicit operational responsibility remains in the review pool");
+const operationalEvidenceLeader = candidateByName("Operational Evidence Leader");
+const operationalSignalMap = new Map(operationalEvidenceLeader.scoreBreakdown.map((signal) => [signal.id, signal]));
+assert.equal(operationalSignalMap.get("cloud_security_governance").strength, "responsibility", "AWS controls with ownership receive responsibility evidence");
+assert.equal(operationalSignalMap.get("cloud_security_governance").points, 15);
+assert.equal(operationalSignalMap.get("isms_audit").strength, "responsibility", "scope and finding remediation distinguish certification ownership from an auditor credential");
+assert.equal(operationalSignalMap.get("isms_audit").points, 10);
+assert.equal(operationalSignalMap.get("people_leadership").strength, "responsibility", "hiring and evaluation are people-management evidence rather than a title proxy");
+assert.equal(operationalSignalMap.get("people_leadership").points, 10);
+assert.ok(operationalEvidenceLeader.rawScore > seniorDomainReviewer.rawScore, "responsibility evidence sorts ahead of a multi-credential clue profile without discarding either candidate");
+const titleOnlyDirector = candidateByName("Title Only Director");
+assert.ok(titleOnlyDirector, "a title-and-credential profile remains available for human review instead of being hard-filtered");
+assert.equal(titleOnlyDirector.roleEvidenceLevel, "direct");
+const titleOnlySignalMap = new Map(titleOnlyDirector.scoreBreakdown.map((signal) => [signal.id, signal]));
+assert.equal(titleOnlySignalMap.get("people_leadership").strength, "clue", "Director alone is not people-management proof");
+assert.equal(titleOnlySignalMap.get("people_leadership").points, 3);
+assert.equal(titleOnlySignalMap.get("cloud_security_governance").strength, "clue", "AWS SAA alone is not cloud-control ownership");
+assert.equal(titleOnlySignalMap.get("isms_audit").strength, "clue", "ISMS-P auditor alone is not certification-cycle ownership");
+assert.match(titleOnlyDirector.verify, /실제 책임·범위·성과/);
 const governanceCommunityLeader = candidateByName("Governance Community Leader");
 assert.ok(governanceCommunityLeader, "candidate-bound privacy and AI governance leadership remains reviewable without a corporate CPO title");
 assert.equal(governanceCommunityLeader.roleEvidenceLevel, "expanded");

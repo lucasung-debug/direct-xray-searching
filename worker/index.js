@@ -651,7 +651,7 @@ const SOURCING_HTML = String.raw`<!doctype html>
     .cards{display:grid;gap:12px;margin-top:14px}.empty-pool{padding:34px 20px;border:1px dashed #b9c7dc;border-radius:14px;background:#f8faff;text-align:center}.empty-pool strong{display:block;font-size:16px}.empty-pool span{display:block;margin-top:7px;color:var(--muted);font-size:12px;line-height:1.6}.candidate{position:relative;display:grid;grid-template-columns:78px minmax(0,1fr);gap:14px;padding:18px;border:1px solid var(--line);border-radius:14px;background:#fff}.rank{position:absolute;top:10px;right:12px;color:#9aa4b5;font-size:10px;font-weight:900}
     .score{width:74px;height:74px;border-radius:18px;background:var(--navy);color:#fff;display:grid;place-items:center;text-align:center}.score strong{display:block;font-size:24px;line-height:1}.score span{display:block;margin-top:5px;font-size:8px;line-height:1.15;color:#bcd0f8}
     .candidate h3{margin:2px 0 5px;font-size:17px}.role{font-size:12px;color:var(--muted)}
-    .review-reason{margin-top:12px;padding:13px;border:1px solid #d8e3f7;border-radius:12px;background:#f7faff}.reason-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.reason-head strong{font-size:12px}.reason-head span{color:var(--muted);font-size:9px;text-align:right}.signal-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.signal-chip{display:flex;align-items:center;gap:9px;min-width:150px;padding:8px 9px;border:1px solid #cddcff;border-radius:9px;background:#fff}.signal-chip>span{display:grid;gap:2px}.signal-chip b{font-size:10px}.signal-chip small{color:var(--muted);font-size:8px}.signal-chip em{margin-left:auto;color:var(--blue);font-size:12px;font-style:normal;font-weight:950}.keyword-lines{display:grid;gap:5px;margin-top:10px;padding-top:9px;border-top:1px solid #dbe5f6}.keyword-line{display:flex;align-items:flex-start;gap:8px;font-size:10px;line-height:1.45}.keyword-line b{flex:0 0 88px;color:#53627a}.keyword-line span{color:var(--ink)}
+    .review-reason{margin-top:12px;padding:13px;border:1px solid #d8e3f7;border-radius:12px;background:#f7faff}.reason-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.reason-head strong{font-size:12px}.reason-head span{color:var(--muted);font-size:9px;text-align:right}.signal-list{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.signal-chip{display:flex;align-items:center;gap:9px;min-width:150px;padding:8px 9px;border:1px solid #cddcff;border-radius:9px;background:#fff}.signal-chip.responsibility{border-color:#9dd9c4;background:#f4fcf8}.signal-chip.clue,.signal-chip.credential{border-color:#f2d39b;background:#fffaf0}.signal-chip.official_designation{border-color:#c8b8f4;background:#faf8ff}.signal-chip>span{display:grid;gap:2px}.signal-chip b{font-size:10px}.signal-chip small{color:var(--muted);font-size:8px}.signal-chip em{margin-left:auto;color:var(--blue);font-size:12px;font-style:normal;font-weight:950}.signal-chip.clue em,.signal-chip.credential em{color:#b16800}.keyword-lines{display:grid;gap:5px;margin-top:10px;padding-top:9px;border-top:1px solid #dbe5f6}.keyword-line{display:flex;align-items:flex-start;gap:8px;font-size:10px;line-height:1.45}.keyword-line b{flex:0 0 88px;color:#53627a}.keyword-line span{color:var(--ink)}
     .evidence-box{margin-top:10px;padding:11px 12px;border-left:3px solid var(--blue);border-radius:0 9px 9px 0;background:var(--soft)}.evidence-box strong{font-size:10px;color:#53627a}.evidence-box p{margin:5px 0 0;font-size:11px;line-height:1.55}
     .card-foot{grid-column:2;display:flex;justify-content:space-between;align-items:center;gap:8px}.profile{font-size:11px;color:var(--blue);font-weight:900;text-decoration:none}.verify-details{grid-column:2;color:var(--muted);font-size:9px}.verify-details summary{cursor:pointer;font-weight:850}.verify-details p{margin:6px 0 0;padding:9px 10px;border-radius:8px;background:var(--amber-soft);line-height:1.5;color:#77501d}
     .pool-actions{display:flex;justify-content:center;gap:8px;margin-top:16px;flex-wrap:wrap}
@@ -936,9 +936,9 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
           var matchedKeywords=Array.isArray(item.matchedKeywords)?item.matchedKeywords.slice(0,5):[];
           var retrievalPaths=Array.isArray(item.retrievalPaths)?item.retrievalPaths.slice():[];
           var scoreBreakdown=Array.isArray(item.scoreBreakdown)?item.scoreBreakdown.slice(0,8):[];
-          var signalChips=masked?"<span class='signal-chip'><span><b>점수 근거 가림</b></span></span>":scoreBreakdown.map(function(signal){var keyword=String(signal&&signal.keyword||"");var points=Math.max(0,Math.min(100,Number(signal&&signal.points)||0));return "<span class='signal-chip'><span><b>"+esc(signal&&signal.label||"직무 신호")+"</b>"+(keyword?"<small>원문 키워드 · "+esc(keyword)+"</small>":"")+"</span><em>+"+esc(points)+"</em></span>"}).join("");
+          var signalChips=masked?"<span class='signal-chip'><span><b>점수 근거 가림</b></span></span>":scoreBreakdown.map(function(signal){var keyword=String(signal&&signal.keyword||"");var points=Math.max(0,Math.min(100,Number(signal&&signal.points)||0));var maxPoints=Math.max(points,Math.min(100,Number(signal&&signal.maxPoints)||points));var strength=String(signal&&signal.strength||"clue").replace(/[^a-z_]/g,"");var strengthLabel=String(signal&&signal.strengthLabel||"확인할 단서");return "<span class='signal-chip "+esc(strength)+"'><span><b>"+esc(signal&&signal.label||"직무 신호")+"</b><small>"+esc(strengthLabel)+(keyword?" · "+esc(keyword):"")+"</small></span><em>+"+esc(points)+(maxPoints>points?"/"+esc(maxPoints):"")+"</em></span>"}).join("");
           if(!signalChips&&!masked)signalChips=(item.tags||[]).map(function(tag){return "<span class='signal-chip'><span><b>"+esc(tag)+"</b><small>직무 신호 확인</small></span><em>확인</em></span>"}).join("")||"<span class='signal-chip'><span><b>사람이 입력한 근거</b><small>공개 원문 직접 확인</small></span><em>확인</em></span>";
-          var scoreNote=masked?"점수 산정 설명 가림":String(item.scoreNote||"공개 원문의 키워드·직무 신호 배점 합계");
+          var scoreNote=masked?"점수 산정 설명 가림":String(item.scoreNote||"책임·성과 근거와 확인할 단서를 분리한 참고점수");
           var visibleRetrievalPaths=retrievalPaths.filter(function(path){return /^전문근거 · /.test(path)}).slice(0,5);if(!visibleRetrievalPaths.length)visibleRetrievalPaths=retrievalPaths.slice(0,5);
           var keywordLines="<div class='keyword-lines'><div class='keyword-line'><b>발견 경로</b><span>"+esc(masked?"검색 경로 가림":visibleRetrievalPaths.length?visibleRetrievalPaths.join(" · "):item.manual?"수동 추가":"검색 경로 확인 필요")+"</span></div><div class='keyword-line'><b>프로필 역할어</b><span>"+esc(masked?"역할어 가림":matchedKeywords.length?matchedKeywords.join(" · "):"직접 역할어 미확인 · 전문근거 확인")+"</span></div></div>";
           var koreaEvidenceLevel=String(item.koreaEvidenceLevel||"");
@@ -976,8 +976,8 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         (Array.isArray(items)?items:[]).forEach(function(raw,index){
           var url=canonicalUrl(raw&&raw.url);if(!url)return;
           var rawRetrievalScore=raw&&raw.retrievalScore;var numericRetrievalScore=Number(rawRetrievalScore);
-          var scoreBreakdown=(Array.isArray(raw&&raw.scoreBreakdown)?raw.scoreBreakdown:[]).slice(0,8).map(function(signal){return {id:String(signal&&signal.id||""),label:String(signal&&signal.label||"직무 신호"),keyword:String(signal&&signal.keyword||""),points:Math.max(0,Math.min(100,Math.round(Number(signal&&signal.points)||0)))}});
-          var item={id:"g"+Date.now()+"-"+index,name:String(raw.name||""),company:String(raw.company||"회사 확인 필요"),title:String(raw.title||""),location:String(raw.location||"공개 정보 확인 필요"),score:Math.max(0,Math.min(100,Number(raw.score)||0)),rawScore:Math.max(0,Math.min(100,Number(raw.rawScore)||Number(raw.score)||0)),scoreNote:String(raw.scoreNote||"공개 원문의 키워드·직무 신호 배점 합계"),scoreBreakdown:scoreBreakdown,retrievalScore:rawRetrievalScore===null||rawRetrievalScore===undefined||rawRetrievalScore===""||!Number.isFinite(numericRetrievalScore)?null:Math.max(0,Math.min(100,Math.round(numericRetrievalScore))),coverage:String(raw.coverage||"Low"),summary:String(raw.summary||""),koreaEvidence:String(raw.koreaEvidence||""),koreaEvidenceLevel:String(raw.koreaEvidenceLevel||""),roleEvidenceLevel:String(raw.roleEvidenceLevel||""),evidenceBasis:String(raw.evidenceBasis||""),evidenceOrigin:String(raw.evidenceOrigin||""),tags:Array.isArray(raw.tags)?raw.tags.slice(0,5):[],verify:String(raw.verify||"필수 gate 원문 검증"),url:url,manual:false,auto:true,sources:Array.isArray(raw.sources)?raw.sources:[],matchedKeywords:Array.isArray(raw.matchedKeywords)?raw.matchedKeywords.slice(0,5):[],retrievalKeywords:Array.isArray(raw.retrievalKeywords)?raw.retrievalKeywords.slice(0,5):[],retrievalPaths:Array.isArray(raw.retrievalPaths)?raw.retrievalPaths.slice(0,6):[]};
+          var scoreBreakdown=(Array.isArray(raw&&raw.scoreBreakdown)?raw.scoreBreakdown:[]).slice(0,8).map(function(signal){var points=Math.max(0,Math.min(100,Math.round(Number(signal&&signal.points)||0)));return {id:String(signal&&signal.id||""),label:String(signal&&signal.label||"직무 신호"),keyword:String(signal&&signal.keyword||""),strength:String(signal&&signal.strength||"clue"),strengthLabel:String(signal&&signal.strengthLabel||"확인할 단서"),points:points,maxPoints:Math.max(points,Math.min(100,Math.round(Number(signal&&signal.maxPoints)||points)))}});
+          var item={id:"g"+Date.now()+"-"+index,name:String(raw.name||""),company:String(raw.company||"회사 확인 필요"),title:String(raw.title||""),location:String(raw.location||"공개 정보 확인 필요"),score:Math.max(0,Math.min(100,Number(raw.score)||0)),rawScore:Math.max(0,Math.min(100,Number(raw.rawScore)||Number(raw.score)||0)),scoreNote:String(raw.scoreNote||"책임·성과 근거와 확인할 단서를 분리한 참고점수"),scoreBreakdown:scoreBreakdown,retrievalScore:rawRetrievalScore===null||rawRetrievalScore===undefined||rawRetrievalScore===""||!Number.isFinite(numericRetrievalScore)?null:Math.max(0,Math.min(100,Math.round(numericRetrievalScore))),coverage:String(raw.coverage||"Low"),summary:String(raw.summary||""),koreaEvidence:String(raw.koreaEvidence||""),koreaEvidenceLevel:String(raw.koreaEvidenceLevel||""),roleEvidenceLevel:String(raw.roleEvidenceLevel||""),evidenceBasis:String(raw.evidenceBasis||""),evidenceOrigin:String(raw.evidenceOrigin||""),tags:Array.isArray(raw.tags)?raw.tags.slice(0,5):[],verify:String(raw.verify||"필수 gate 원문 검증"),url:url,manual:false,auto:true,sources:Array.isArray(raw.sources)?raw.sources:[],matchedKeywords:Array.isArray(raw.matchedKeywords)?raw.matchedKeywords.slice(0,5):[],retrievalKeywords:Array.isArray(raw.retrievalKeywords)?raw.retrievalKeywords.slice(0,5):[],retrievalPaths:Array.isArray(raw.retrievalPaths)?raw.retrievalPaths.slice(0,6):[]};
           if(!item.name||!item.title||!item.summary)return;
           var existingIndex=candidates.findIndex(function(candidate){return canonicalUrl(candidate.url)===url});
           if(existingIndex>=0){
@@ -1987,9 +1987,33 @@ const SEARCH_SIGNAL_PATTERNS = Object.freeze({
   cloud_security_governance: /(\bAWS\b|cloud security|cloud governance|cloud-native|\bIAM\b|\bKMS\b|CloudTrail|\bS3\b|클라우드\s*(?:보안|거버넌스|운영))/i,
   incident_regulatory_response: /(incident response|breach notification|regulatory response|data breach|개인정보위|\bKISA\b|사고\s*대응|유출|규제\s*대응)/i,
   isms_audit: /(ISMS(?:-P)?|PIMS|ISO\s*27001|ISO\s*27701|인증\s*심사|심사\s*대응)/i,
-  people_leadership: /(people leadership|team leadership|team lead|security director|head of|\bdirector\b|country\s+leader|팀장|센터장|실장|부문장|조직\s*리딩|조직\s*관리)/i,
+  people_leadership: /(people leadership|team leadership|team lead|security director|head of|\bdirector\b|country\s+leader|(?:hir(?:e|ed|ing)|recruit(?:ed|ing)?|evaluat(?:e|ed|ing)|develop(?:ed|ing)?|manag(?:e|ed|ing)|build|built|lead|led).{0,90}(?:security|privacy|information security)?\s*(?:team|organization|organisation|staff|workforce)|(?:team|organization|organisation|staff|workforce).{0,90}(?:hir(?:e|ed|ing)|recruit(?:ed|ing)?|evaluat(?:e|ed|ing)|develop(?:ed|ing)?|manag(?:e|ed|ing)|build|built|lead|led)|팀장|센터장|실장|부문장|조직\s*(?:리딩|관리|신설)|(?:팀|조직|인력).{0,80}(?:채용|평가|육성|예산|관리))/i,
   platform_data_context: /(platform|\bSaaS\b|fintech|content company|data platform|AI governance|responsible AI|플랫폼|핀테크|콘텐츠\s*기업|데이터\s*서비스|AI\s*거버넌스)/i,
   security_certifications: /(CISSP|CISM|CISA|CCSP|CPPG|AWS Security|AWS\s+(?:SAA|Solutions Architect)|정보보안기사|ISMS-P\s*(?:심사원|인증심사원))/i,
+});
+
+const SEARCH_SIGNAL_STRENGTH_LABELS = Object.freeze({
+  responsibility: "책임·성과 근거",
+  official_designation: "공식 제3자 지정",
+  credential: "자격·심사원 단서",
+  clue: "직함·용어 단서",
+  direct_role: "역할 직접근거",
+});
+
+const SEARCH_SIGNAL_STRENGTH_MULTIPLIERS = Object.freeze({
+  responsibility: 1,
+  official_designation: 0.5,
+  credential: 0.34,
+  clue: 0.25,
+  direct_role: 1,
+});
+
+const SEARCH_SIGNAL_STRENGTH_RANK = Object.freeze({
+  clue: 1,
+  credential: 2,
+  official_designation: 3,
+  responsibility: 4,
+  direct_role: 4,
 });
 
 const GENERIC_SEARCH_SIGNAL_WEIGHTS = Object.freeze({ role_keyword_match: 40 });
@@ -2233,6 +2257,14 @@ function sourceSearchSignalKeyword(profile, signal, sourceText, input, matchedRo
   return compactText(match && match[0], 80);
 }
 
+function searchSignalPoints(weight, strength) {
+  const numericWeight = Math.max(0, Number(weight) || 0);
+  const multiplier = Object.hasOwn(SEARCH_SIGNAL_STRENGTH_MULTIPLIERS, strength)
+    ? SEARCH_SIGNAL_STRENGTH_MULTIPLIERS[strength]
+    : SEARCH_SIGNAL_STRENGTH_MULTIPLIERS.clue;
+  return numericWeight ? Math.max(1, Math.round(numericWeight * multiplier)) : 0;
+}
+
 function candidateResponsePart(result) {
   const candidate = result && result.payload && Array.isArray(result.payload.candidates) ? result.payload.candidates[0] : null;
   const parts = candidate && candidate.content && Array.isArray(candidate.content.parts) ? candidate.content.parts : [];
@@ -2445,26 +2477,78 @@ function tavilyCandidateContent(hit, input, title) {
   return compactText([snippet].concat(segments).filter(Boolean).join(" [...] "), 3000);
 }
 
-function candidateBoundProfessionalSignals(title, content, input, officialDesignationEvidence = "") {
-  const signalProfile = searchEvaluationProfileFor(input);
-  if (signalProfile.id !== "privacy_security") return [];
+function candidateBoundProfessionalEvidenceSegments(title, content) {
   const subject = sourceSubjectHint(title);
   const contentSegments = String(content || "").split(/(?:\n+|\s*\[\.\.\.\]\s*|(?<=[.!?])\s+)/).map((segment) => compactText(segment, 900)).filter(Boolean);
-  const segments = [compactText(title, 300)].concat(contentSegments).filter(Boolean).filter((segment, index) => {
+  return [compactText(title, 300)].concat(contentSegments).filter(Boolean).filter((segment, index) => {
     if (RAW_EVIDENCE_INSTRUCTION_PATTERN.test(segment) || NON_CANDIDATE_ROLE_CONTEXT_PATTERN.test(segment)) return false;
     const normalized = normalizedEvidenceText(segment);
     const subjectBound = Boolean(subject && normalized.includes(subject));
     return index <= 3 || subjectBound || /(?:serves?\s+as|works?\s+as|experience|leads?|heads?|oversees?|responsible\s+for|career|경력|역할|수행|총괄|담당|책임자|실장|심사원|인증)/i.test(segment);
   });
-  const evidence = segments.join(" ");
-  const signals = Object.keys(signalProfile.weights).filter((signal) => sourceSupportsSearchSignal(signalProfile, signal, evidence, input));
-  if (officialDesignationEvidence) {
-    const designationSignals = new Set(["privacy_program", "people_leadership", "platform_data_context"]);
-    for (const signal of designationSignals) {
-      if (sourceSupportsSearchSignal(signalProfile, signal, officialDesignationEvidence, input) && !signals.includes(signal)) signals.push(signal);
+}
+
+const EXECUTIVE_GOVERNANCE_RESPONSIBILITY_PATTERN = /(?:\b(?:board|CEO|chief executive|executive committee|risk acceptance|risk escalation|budget|headcount|direct reports?|report(?:s|ed|ing)?\s+to)\b|이사회|대표이사|경영진|리스크\s*(?:수용|보고|에스컬레이션)|예산|인력|위원회|전사\s*의사결정)/i;
+const CLOUD_CONTROL_RESPONSIBILITY_PATTERN = /(?:cloud\s*(?:security|governance|operations?)|(?:AWS|cloud).{0,100}(?:IAM|logging|logs?|encryption|KMS|region|backup|deletion|incident|vendor|cross-border|CloudTrail|S3)|(?:IAM|logging|logs?|encryption|KMS|region|backup|deletion|incident|vendor|cross-border|CloudTrail|S3).{0,100}(?:AWS|cloud)|클라우드\s*(?:보안|거버넌스|운영)|(?:IAM|로그|암호화|리전|백업|삭제|사고|위수탁|국외이전).{0,100}클라우드)/i;
+const ISMS_OPERATION_RESPONSIBILITY_PATTERN = /(?:(?:first|initial|maintain(?:ed|ing)?|achiev(?:e|ed|ing)|lead|led|own(?:ed|ing)?)\s+(?:an?\s+)?(?:ISMS(?:-P)?\s+)?certification|ISMS(?:-P)?\s+(?:operations?|program|controls?)|renewal|surveillance|scope|finding|remediation|control owner|audit response|인증\s*(?:획득|구축|유지|갱신|총괄|대응|범위|주기)|갱신|사후심사|범위|지적|개선|통제\s*책임|심사\s*대응|증적)/i;
+const ISMS_CREDENTIAL_ONLY_PATTERN = /(?:auditor|examiner|심사원|인증심사원|자격|credential|certificate|certified)/i;
+const PEOPLE_MANAGEMENT_RESPONSIBILITY_PATTERN = /(?:(?:team|people|organization|organisation|org|direct reports?|staff|workforce|팀|조직|인력).{0,90}(?:lead|manage|build|hire|recruit|evaluate|develop|budget|총괄|리딩|관리|신설|채용|평가|육성|예산)|(?:lead|manage|build|hire|recruit|evaluate|develop|budget|총괄|리딩|관리|신설|채용|평가|육성|예산).{0,90}(?:team|people|organization|organisation|org|direct reports?|staff|workforce|팀|조직|인력))/i;
+
+function professionalSignalStrengthForSegment(signal, segment) {
+  if (signal === "security_certifications") return "credential";
+  if (!ADJACENT_RESPONSIBILITY_PATTERN.test(segment)) return "clue";
+  if (signal === "executive_privacy_governance") {
+    return EXECUTIVE_GOVERNANCE_RESPONSIBILITY_PATTERN.test(segment) ? "responsibility" : "clue";
+  }
+  if (signal === "cloud_security_governance") {
+    return CLOUD_CONTROL_RESPONSIBILITY_PATTERN.test(segment) ? "responsibility" : "clue";
+  }
+  if (signal === "isms_audit") {
+    if (ISMS_CREDENTIAL_ONLY_PATTERN.test(segment) && !ISMS_OPERATION_RESPONSIBILITY_PATTERN.test(segment)) return "clue";
+    return ISMS_OPERATION_RESPONSIBILITY_PATTERN.test(segment) ? "responsibility" : "clue";
+  }
+  if (signal === "people_leadership") {
+    return PEOPLE_MANAGEMENT_RESPONSIBILITY_PATTERN.test(segment) ? "responsibility" : "clue";
+  }
+  return "responsibility";
+}
+
+function candidateBoundProfessionalSignalEvidence(title, content, input, officialDesignationEvidence = "", matchedRoleTerms = []) {
+  const signalProfile = searchEvaluationProfileFor(input);
+  if (signalProfile.id !== "privacy_security") return [];
+  const evidenceBySignal = new Map();
+  for (const signal of Object.keys(signalProfile.weights)) {
+    for (const segment of candidateBoundProfessionalEvidenceSegments(title, content)) {
+      if (!sourceSupportsSearchSignal(signalProfile, signal, segment, input)) continue;
+      const strength = professionalSignalStrengthForSegment(signal, segment);
+      const record = {
+        id: signal,
+        strength,
+        keyword: sourceSearchSignalKeyword(signalProfile, signal, segment, input, matchedRoleTerms),
+        excerpt: compactText(segment, 360),
+      };
+      const existing = evidenceBySignal.get(signal);
+      if (!existing || (SEARCH_SIGNAL_STRENGTH_RANK[strength] || 0) > (SEARCH_SIGNAL_STRENGTH_RANK[existing.strength] || 0)) evidenceBySignal.set(signal, record);
     }
   }
-  return signals;
+  if (officialDesignationEvidence) {
+    for (const signal of ["privacy_program", "people_leadership", "platform_data_context"]) {
+      if (!sourceSupportsSearchSignal(signalProfile, signal, officialDesignationEvidence, input)) continue;
+      const record = {
+        id: signal,
+        strength: "official_designation",
+        keyword: sourceSearchSignalKeyword(signalProfile, signal, officialDesignationEvidence, input, matchedRoleTerms),
+        excerpt: compactText(officialDesignationEvidence, 360),
+      };
+      const existing = evidenceBySignal.get(signal);
+      if (!existing || SEARCH_SIGNAL_STRENGTH_RANK.official_designation > (SEARCH_SIGNAL_STRENGTH_RANK[existing.strength] || 0)) evidenceBySignal.set(signal, record);
+    }
+  }
+  return Array.from(evidenceBySignal.values()).sort((left, right) => Object.keys(signalProfile.weights).indexOf(left.id) - Object.keys(signalProfile.weights).indexOf(right.id));
+}
+
+function candidateBoundProfessionalSignals(title, content, input, officialDesignationEvidence = "") {
+  return candidateBoundProfessionalSignalEvidence(title, content, input, officialDesignationEvidence).map((record) => record.id);
 }
 
 const ADJACENT_RESPONSIBILITY_PATTERN = /(?:\b(?:lead|leads|led|leading|spearhead(?:s|ed|ing)?|establish(?:es|ed|ing)?|build(?:s|ing)?|built|own(?:s|ed|ing)?|oversee(?:s|ing)?|manage(?:s|d|ment|ing)?|drive(?:s|n|ing)?|drove|direct(?:s|ed|ing)?|head(?:s|ed|ing)?|responsible\s+for|accountable\s+for)\b|총괄|주도|구축|운영|책임|리딩|관리|대응)/i;
@@ -2760,7 +2844,10 @@ function safeTavilyResults(payload, input) {
     const officialDesignationEvidence = hit.evidenceGate === "governance_leadership"
       ? officialThirdPartyGovernanceDesignation(title, content, input)
       : "";
-    const professionalSignals = evidenceRecord ? candidateBoundProfessionalSignals(title, content, input, officialDesignationEvidence) : [];
+    const professionalSignalEvidence = evidenceRecord
+      ? candidateBoundProfessionalSignalEvidence(title, content, input, officialDesignationEvidence, matchedRoleTerms)
+      : [];
+    const professionalSignals = professionalSignalEvidence.map((record) => record.id);
     const roleEvidenceLevel = matchedRoleTerms.length
       ? "direct"
       : adjacentProfessionalEvidenceMatch(title, content, input, professionalSignals)
@@ -2777,7 +2864,7 @@ function safeTavilyResults(payload, input) {
     if (queryStat && roleEvidenceLevel === "expanded") queryStat.expandedEvidenceProfileKeys.add(key);
     let profile = profileMap.get(key);
     if (!profile) {
-      profile = { url, titles: [], contents: [], evidenceByKeyword: new Map(), matchedRoleTerms: [], professionalSignals: [], roleEvidenceLevel, officialDesignationEvidence: "", retrievalKeywords: [], retrievalQueryIds: [], retrievalLanes: [], retrievalPaths: [], relevance: null };
+      profile = { url, titles: [], contents: [], evidenceByKeyword: new Map(), matchedRoleTerms: [], professionalSignals: [], professionalSignalEvidence: [], roleEvidenceLevel, officialDesignationEvidence: "", retrievalKeywords: [], retrievalQueryIds: [], retrievalLanes: [], retrievalPaths: [], relevance: null };
       profileMap.set(key, profile);
     }
     if (title && !profile.titles.includes(title)) profile.titles.push(title);
@@ -2791,6 +2878,11 @@ function safeTavilyResults(payload, input) {
     }
     for (const signal of professionalSignals) {
       if (!profile.professionalSignals.includes(signal)) profile.professionalSignals.push(signal);
+    }
+    for (const record of professionalSignalEvidence) {
+      const existingIndex = profile.professionalSignalEvidence.findIndex((item) => item.id === record.id);
+      if (existingIndex < 0) profile.professionalSignalEvidence.push(record);
+      else if ((SEARCH_SIGNAL_STRENGTH_RANK[record.strength] || 0) > (SEARCH_SIGNAL_STRENGTH_RANK[profile.professionalSignalEvidence[existingIndex].strength] || 0)) profile.professionalSignalEvidence[existingIndex] = record;
     }
     if (officialDesignationEvidence && officialDesignationEvidence.length > profile.officialDesignationEvidence.length) {
       profile.officialDesignationEvidence = officialDesignationEvidence;
@@ -2938,6 +3030,7 @@ function safeTavilyResults(payload, input) {
           : profile.roleEvidenceLevel === "adjacent" ? "candidate_profile_responsibility" : "candidate_profile_role",
       officialDesignationEvidence: profile.roleEvidenceLevel === "expanded" ? profile.officialDesignationEvidence : "",
       professionalSignals: profile.professionalSignals.slice().sort((left, right) => left.localeCompare(right)),
+      professionalSignalEvidence: profile.professionalSignalEvidence.slice().sort((left, right) => Object.keys(SEARCH_SIGNAL_WEIGHTS).indexOf(left.id) - Object.keys(SEARCH_SIGNAL_WEIGHTS).indexOf(right.id)),
       matchedRoleTerms: profile.matchedRoleTerms.slice().sort((left, right) => left.localeCompare(right)),
       matchedKeywords: profile.matchedRoleTerms.slice().sort((left, right) => left.localeCompare(right)),
       retrievalKeywords: profile.retrievalKeywords.slice().sort((left, right) => left.localeCompare(right)),
@@ -3155,6 +3248,9 @@ function structuredSearchCandidates(result, sources, input) {
       .filter((signal) => sourceSupportsSearchSignal(signalProfile, signal, scoringSourceText, input))
       .filter((signal) => signalProfile.id !== "privacy_security" || !validatedProfessionalSignals || validatedProfessionalSignals.has(signal));
     if (!signals.length) continue;
+    const sourceSignalEvidence = new Map((Array.isArray(source.professionalSignalEvidence) ? source.professionalSignalEvidence : [])
+      .filter((item) => item && item.id)
+      .map((item) => [item.id, item]));
     const title = modelTitle && sourceText.includes(normalizedEvidenceText(modelTitle)) ? modelTitle : source.title.replace(/\s*[|·-]\s*LinkedIn\s*$/i, "");
     const company = modelCompany && modelCompany.toUpperCase() !== "UNKNOWN" && sourceText.includes(normalizedEvidenceText(modelCompany)) ? modelCompany : "회사 확인 필요";
     const location = modelLocation && modelLocation.toUpperCase() !== "UNKNOWN" && sourceText.includes(normalizedEvidenceText(modelLocation))
@@ -3168,23 +3264,36 @@ function structuredSearchCandidates(result, sources, input) {
       : koreaEvidenceLevel === "weak"
         ? compactText(source.koreaContextEvidence && source.koreaContextEvidence[0], 300)
         : koreaEvidenceLevel === "unverified" ? "한국 관련 직무 근거 미확인" : "";
-    const rawScore = signals.reduce((sum, signal) => sum + signalProfile.weights[signal], 0);
+    const scoreBreakdown = signals.map((signal) => {
+      const evidenceRecord = sourceSignalEvidence.get(signal);
+      const strength = signalProfile.id === "generic_role"
+        ? "direct_role"
+        : evidenceRecord && Object.hasOwn(SEARCH_SIGNAL_STRENGTH_LABELS, evidenceRecord.strength) ? evidenceRecord.strength : "clue";
+      return {
+        id: signal,
+        label: signalProfile.labels[signal],
+        keyword: compactText(evidenceRecord && evidenceRecord.keyword, 80)
+          || sourceSearchSignalKeyword(signalProfile, signal, evidence, input, source.matchedRoleTerms)
+          || sourceSearchSignalKeyword(signalProfile, signal, scoringSourceText, input, source.matchedRoleTerms),
+        strength,
+        strengthLabel: SEARCH_SIGNAL_STRENGTH_LABELS[strength],
+        points: searchSignalPoints(signalProfile.weights[signal], strength),
+        maxPoints: signalProfile.weights[signal],
+      };
+    });
+    const rawScore = scoreBreakdown.reduce((sum, signal) => sum + signal.points, 0);
     const koreaScoreCap = koreaEvidenceLevel === "weak" ? 69 : koreaEvidenceLevel === "unverified" ? 49 : 100;
     const evidenceScoreCap = source.roleEvidenceLevel === "expanded" ? 49 : 100;
     const score = Math.min(rawScore, koreaScoreCap, evidenceScoreCap);
-    const scoreBreakdown = signals.map((signal) => ({
-      id: signal,
-      label: signalProfile.labels[signal],
-      keyword: sourceSearchSignalKeyword(signalProfile, signal, evidence, input, source.matchedRoleTerms)
-        || sourceSearchSignalKeyword(signalProfile, signal, scoringSourceText, input, source.matchedRoleTerms),
-      points: signalProfile.weights[signal],
-    }));
+    const responsibilitySignalCount = scoreBreakdown.filter((signal) => signal.strength === "responsibility" || signal.strength === "direct_role").length;
+    const clueSignalCount = scoreBreakdown.filter((signal) => signal.strength === "clue" || signal.strength === "credential").length;
     const scoreCapReason = evidenceScoreCap <= koreaScoreCap && evidenceScoreCap < 100
       ? "확장 검토근거"
       : koreaEvidenceLevel === "weak" ? "한국 관련 단서" : "한국 직무근거 미확인";
+    const evidenceStrengthSummary = "책임·성과 " + responsibilitySignalCount + "개 · 확인할 단서 " + clueSignalCount + "개";
     const scoreNote = score < rawScore
-      ? "직무 신호 합계 " + rawScore + "점 → " + scoreCapReason + " 단계 상한 " + score + "점 적용"
-      : "공개 원문의 키워드·직무 신호 배점 합계";
+      ? "근거강도 반영 " + rawScore + "점 → " + scoreCapReason + " 단계 상한 " + score + "점 적용"
+      : source.roleEvidenceLevel === "expanded" ? evidenceStrengthSummary + " · 확장 검토근거" : evidenceStrengthSummary;
     const coverage = source.roleEvidenceLevel === "expanded" || koreaEvidenceLevel === "unverified"
       ? "Low"
       : score >= 70 && evidence.length >= 80 ? "High" : score >= 40 ? "Medium" : "Low";
@@ -3218,7 +3327,7 @@ function structuredSearchCandidates(result, sources, input) {
           ? source.evidenceBasis === "official_third_party_designation"
             ? "직접 역할어·기업 책임범위 미확인 · 공식 기관이 후보를 지명한 제3자 지정문으로 확장 회수"
             : "직접 역할어·기업 책임범위 미확인 · 후보 공개 프로필의 장기 다중근거 또는 Privacy·AI 거버넌스 리더십으로 확장 회수"
-          : "직접 역할어 원문 확인", koreaVerification, "Tavily snippet 및 LinkedIn 원문 일치 확인", koreaProfessionalContext ? "국적·시민권은 추론하지 않음; 필요 시 본인 확인" : "", "모든 hard gate는 VERIFY"].filter(Boolean).join(" · "),
+          : "직접 역할어 원문 확인", clueSignalCount ? "직함·자격·용어 단서 " + clueSignalCount + "개는 실제 책임·범위·성과를 원문과 인터뷰에서 확인" : "", koreaVerification, "Tavily snippet 및 LinkedIn 원문 일치 확인", koreaProfessionalContext ? "국적·시민권은 추론하지 않음; 필요 시 본인 확인" : "", "모든 hard gate는 VERIFY"].filter(Boolean).join(" · "),
       url: source.url,
       sources: [{ uri: source.url, title: source.title }],
       matchedKeywords: Array.isArray(source.matchedRoleTerms) ? source.matchedRoleTerms.slice(0, 5) : [],
@@ -3587,7 +3696,7 @@ async function handleSourcingSearch(request, env) {
       executedQueries,
       executedKeywords,
       searchPlan,
-      sources: acceptedSources.map((source) => ({ uri: source.url, title: source.title, roleEvidenceLevel: source.roleEvidenceLevel, evidenceBasis: source.evidenceBasis, matchedRoleTerms: source.matchedRoleTerms.slice(), retrievalKeywords: source.retrievalKeywords.slice(), retrievalLanes: source.retrievalLanes.slice(), retrievalPaths: source.retrievalPaths.slice(), koreaEvidenceLevel: source.koreaEvidenceLevel })),
+      sources: acceptedSources.map((source) => ({ uri: source.url, title: source.title, roleEvidenceLevel: source.roleEvidenceLevel, evidenceBasis: source.evidenceBasis, professionalSignalEvidence: source.professionalSignalEvidence.map((record) => ({ id: record.id, strength: record.strength, keyword: record.keyword })), matchedRoleTerms: source.matchedRoleTerms.slice(), retrievalKeywords: source.retrievalKeywords.slice(), retrievalLanes: source.retrievalLanes.slice(), retrievalPaths: source.retrievalPaths.slice(), koreaEvidenceLevel: source.koreaEvidenceLevel })),
       searchAttempts,
       usageCredits,
       locationPolicy,
