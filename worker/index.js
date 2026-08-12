@@ -563,6 +563,13 @@ const DIRECT_XRAY_PRESETS = Object.freeze({
       Object.freeze({ id: "senior_domain_evidence", label: "장기 경력 · ISMS-P · PIA", query: "LinkedIn profile 정보보호 개인정보 10년 ISMS-P PIMS CPPG PIA CISSP CISA AWS", evidenceGate: "senior_multi_signal" }),
       Object.freeze({ id: "privacy_ai_governance", label: "Privacy · AI 거버넌스 리더", query: "LinkedIn profile IAPP Korea country leader privacy AI governance", evidenceGate: "governance_leadership" }),
     ]),
+    deepEvidenceRetrievalFacets: Object.freeze([
+      Object.freeze({ id: "executive_designation_variants", label: "최고책임자 · 임원 총괄 표현", query: "LinkedIn profile Korea 정보보호최고책임자 개인정보보호책임자 임원 총괄", evidenceGate: "adjacent_responsibility" }),
+      Object.freeze({ id: "regulated_org_leadership", label: "금융·소비자 기업 · 부문·센터 리딩", query: "LinkedIn profile 한국 정보보호부문장 보안센터장 개인정보보호 금융 핀테크 유통", evidenceGate: "adjacent_responsibility" }),
+      Object.freeze({ id: "former_executive_cloud_path", label: "전직 CPO/CISO · 클라우드 아키텍트", query: "LinkedIn profile Korea former CISO CPO cloud native security architect platform", evidenceGate: "adjacent_responsibility" }),
+      Object.freeze({ id: "audit_standards_leadership", label: "선임심사 · 국제표준 · 인증 리더십", query: "LinkedIn profile Korea ISMS-P 선임심사원 PIMS ISO 27001 27701 APEC CBPR 개인정보보호", evidenceGate: "senior_multi_signal" }),
+      Object.freeze({ id: "privacy_professional_leadership", label: "Privacy 법률·전문 커뮤니티 리더", query: "LinkedIn profile Korea privacy counsel data protection digital responsibility AI governance professional association leader", evidenceGate: "governance_leadership" }),
+    ]),
     fields: Object.freeze({
       job: "CPO (Chief Privacy Officer)",
       location: "한국 관련 인재 · 현재 거주지 무관",
@@ -782,7 +789,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         <h3>Tavily Search · 후보 검색</h3>
         <div class="key-meta" id="tavily-key-meta">저장 상태 확인 중</div>
         <div class="field"><label for="tavily-key">새 Tavily API 키</label><input id="tavily-key" type="password" autocomplete="off" spellcheck="false" placeholder="tvly-…" maxlength="512"></div>
-        <p class="muted" style="font-size:11px;line-height:1.55">버튼을 누를 때만 <code>linkedin.com/in</code> 공개 프로필로 제한합니다. 초기 검색은 키워드당 역할어·전문근거 basic 검색면 2개를 실행하고, 선택형 심층 검색은 프리셋 전문근거를 advanced로 다시 탐색해 현재 탭의 후보 풀에 URL 중복 제거 후 합칩니다. 키워드는 최대 5줄이며 각 라운드는 최대 10 credits입니다. 연결 테스트는 무료 usage 조회입니다. 기본 일일 안전 한도는 공개 방문자 20 credits, 공개 사이트 전체 200 credits, 소유자 200 credits이며 같은 조건·같은 라운드의 완료 검색은 15분간 서버에서도 중복 실행을 막습니다. 필수·우대 조건은 검색어에 섞지 않고 마지막 Gemini 평가에만 사용합니다. 앱 DB에는 검색 결과를 저장하지 않지만 Tavily 측 query 처리·로그 가능성은 있으므로, 비공개 후보정보를 입력하지 마세요.</p>
+        <p class="muted" style="font-size:11px;line-height:1.55">버튼을 누를 때만 <code>linkedin.com/in</code> 공개 프로필로 제한합니다. 초기 검색은 키워드당 역할어·전문근거 basic 검색면 2개를 실행하고, 선택형 심층 검색은 프리셋의 별도 확장 전문근거를 advanced로 탐색해 현재 탭의 후보 풀에 URL 중복 제거 후 합칩니다. 키워드는 최대 5줄이며 각 라운드는 최대 10 credits입니다. 연결 테스트는 무료 usage 조회입니다. 기본 일일 안전 한도는 공개 방문자 20 credits, 공개 사이트 전체 200 credits, 소유자 200 credits이며 같은 조건·같은 라운드의 완료 검색은 15분간 서버에서도 중복 실행을 막습니다. 필수·우대 조건은 검색어에 섞지 않고 마지막 Gemini 평가에만 사용합니다. 앱 DB에는 검색 결과를 저장하지 않지만 Tavily 측 query 처리·로그 가능성은 있으므로, 비공개 후보정보를 입력하지 마세요.</p>
         <div id="tavily-settings-message" class="search-message hidden"></div>
         <div class="provider-actions"><button class="btn danger" id="tavily-key-delete" type="button">키 삭제</button><button class="btn" id="tavily-key-test" type="button">연결 테스트</button><button class="btn primary" id="tavily-key-save" type="button">암호화 저장</button></div>
       </section>
@@ -1894,15 +1901,20 @@ function identityRetrievalContextFor(input, keyword) {
 function tavilyQueryPlanFor(input) {
   const workContext = compactText(input.location, 80).replace(/"/g, " ");
   const preset = directXrayPresetFor(input);
-  const evidenceFacets = preset && Array.isArray(preset.evidenceRetrievalFacets) ? preset.evidenceRetrievalFacets : [];
   const retrievalRound = retrievalRoundFor(input);
+  const selectedFacets = preset && (retrievalRound === "deep" ? preset.deepEvidenceRetrievalFacets : preset.evidenceRetrievalFacets);
+  const evidenceFacets = Array.isArray(selectedFacets)
+    ? selectedFacets
+    : [];
   return searchKeywordBatchFor(input).flatMap((keyword, keywordIndex) => {
     const role = safeSearchKeyword(keyword);
     const identityContext = identityRetrievalContextFor(input, keyword);
-    const evidenceFacet = evidenceFacets.length ? evidenceFacets[keywordIndex % evidenceFacets.length] : null;
+    const evidenceFacet = evidenceFacets[keywordIndex] || null;
     const evidenceQuery = evidenceFacet
       ? compactText(evidenceFacet.query, 300)
-      : compactText('"' + role + '" LinkedIn profile ' + [workContext, "professional experience"].filter(Boolean).join(" "), 300);
+      : retrievalRound === "deep"
+        ? compactText('"' + role + '" LinkedIn profile leadership responsibilities achievements', 300)
+        : compactText('"' + role + '" LinkedIn profile ' + [workContext, "professional experience"].filter(Boolean).join(" "), 300);
     const roleQuery = {
       id: normalizedEvidenceText(role) + ":role_identity",
       keyword,
@@ -2201,6 +2213,8 @@ const KOREA_PROFESSIONAL_EVIDENCE_PATTERNS = Object.freeze([
   /정보\s*(?:보호|보안)(?:\s*(?:실장|책임자|담당자|거버넌스|조직|팀장|업무|경력|전문가|리더))?/gi,
   /(?:한국|국내)(?:의|내|에서|\s)*(?:시장|사업|법인|고객|규제|컴플라이언스|개인정보|정보보호|정보보안|프라이버시)/gi,
   /\b(?:ISMS-P|CPPG|PIPA|KISA)\b/gi,
+  /\b(?:South\s+Korea|Korea)\s+(?:country|chapter|community)\s+leader\b/gi,
+  /(?:대한민국|한국)\s*(?:국가|컨트리|챕터|커뮤니티)\s*리더/gi,
   /\b(?:South\s+Korea|Korea|Korean)[ -]*(?:market|business|operations?|privacy|data\s+protection|information\s+security|cybersecurity|regulatory|compliance)\b/gi,
   /\b(?:market|business|operations?|privacy|data\s+protection|information\s+security|cybersecurity|regulatory|compliance)(?:\s+(?:in|for|across|of))?\s+(?:South\s+Korea|Korea)\b/gi,
 ]);
@@ -3540,7 +3554,7 @@ async function handleSourcingSearch(request, env) {
     const evidenceFacetIds = retrievalPlan.filter((item) => item.evidenceFacetId).map((item) => item.evidenceFacetId);
     const searchPlan = {
       strategy: retrievalRound === "deep"
-        ? evidenceFacetIds.length ? "preset_evidence_facets_advanced_then_ai" : "atomic_role_evidence_advanced_then_ai"
+        ? evidenceFacetIds.length ? "preset_expansion_facets_advanced_then_ai" : "atomic_role_expansion_advanced_then_ai"
         : evidenceFacetIds.length ? "atomic_role_plus_preset_evidence_facet_union_then_ai" : "atomic_dual_lane_union_role_family_then_ai",
       retrievalRound,
       keywords: executedKeywords.slice(),
