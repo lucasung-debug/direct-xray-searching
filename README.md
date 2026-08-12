@@ -36,6 +36,7 @@ flowchart LR
 
 - **Extensible presets**: 현재 CPO 테스트 프리셋은 역할어와 검증된 전문근거 검색면을 함께 소유합니다. 다른 역할은 자기 역할어·평가 신호·전문근거 검색면을 별도 프리셋으로 추가할 수 있으며, 커스텀 검색에는 CPO 지식을 임의로 적용하지 않습니다.
 - **Role + evidence retrieval**: 정확한 역할어 검색 5회와 프리셋 전문근거 검색 5회를 같은 10 credits 안에서 합칩니다. CPO 프리셋은 한국어 직함·업무 표현을 포함해 거버넌스 성과, 정보보호 조직장, 플랫폼·클라우드 리더, 장기 개인정보·보안 경력, Privacy·AI 거버넌스 리더 유형을 각각 탐색합니다.
+- **Optional deep round**: 초기 10개 `basic` 검색으로 폭을 확보한 뒤, 같은 조건에서 5개 전문근거 facet을 `advanced`로 한 번 더 탐색할 수 있습니다. 두 라운드는 각각 10 credits이며, 브라우저가 공개 `/in/` URL로 중복을 제거하면서 초기·심층 발견 경로를 함께 보존합니다.
 - **Stage-level recall audit**: 비공개 레퍼런스 벤치마크는 요청마다 달라지는 일회성 해시로 `raw URL → 역할 결속 → 검토 풀 → 최종 카드` 회수 여부를 구분합니다. API 응답과 benchmark 출력에는 기준 후보 이름·URL·slug를 남기지 않습니다.
 - **Preset-owned identity context**: `CPO`처럼 동음이의가 많은 역할어는 프리셋이 `Chief Privacy Officer·개인정보보호` 같은 짧은 검색 문맥을 역할어별로 선언합니다. 다른 프리셋도 자기 문맥을 독립적으로 추가할 수 있고, 커스텀 역할은 입력한 업무 문맥만 사용합니다.
 - **Evidence-preserving pool**: Gemini 출력이 후보 풀의 membership gate가 되지 않습니다. 구조화 실패 시 서버가 검색 원문에 결속된 후보를 복구합니다.

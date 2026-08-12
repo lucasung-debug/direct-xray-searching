@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash, webcrypto } from "node:crypto";
 import vm from "node:vm";
-import { compareRetrievalBenchmarks, evaluateRetrievalBenchmark, normalizeLinkedInProfileKey } from "./benchmark-retrieval.mjs";
+import { compareRetrievalBenchmarks, evaluateRetrievalBenchmark, evaluateRetrievalRounds, normalizeLinkedInProfileKey } from "./benchmark-retrieval.mjs";
 
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
 if (!globalThis.btoa) globalThis.btoa = (value) => Buffer.from(value, "binary").toString("base64");
@@ -171,7 +171,7 @@ assert.match(home, /원문 키워드/);
 assert.match(home, /발견 경로/);
 assert.match(home, /프로필 역할어/);
 assert.match(home, /visibleRetrievalPaths/);
-assert.match(home, /\^전문근거 · /, "candidate cards prioritize the evidence path that explains why the profile is worth opening");
+assert.match(home, /\^\(\?:전문근거\|심층근거\) · /, "candidate cards prioritize both initial and deep evidence paths that explain why the profile is worth opening");
 assert.match(home, /공개 원문에서 확인할 문장/);
 assert.match(home, /검증 체크 보기/);
 assert.match(home, /\.search-flow\{display:none\}/, "the search process is reduced to a compact status instead of dominating the result view");
@@ -195,11 +195,13 @@ assert.doesNotMatch(home, new RegExp(fakeTavilyKey));
 assert.match(home, /function mergeSearchCandidates/);
 assert.match(home, /if\(existing\.manual\)/, "human-reviewed candidates have an explicit preservation branch");
 assert.match(home, /score:existing\.score/, "automatic matches preserve reviewed score");
-assert.match(home, /item\.id=existing\.id/, "automatic-only candidates accept the newest AI evaluation");
+assert.match(home, /var preferred=itemScore>=existingScore\?item:existing/, "automatic-only candidates retain the stronger evidence evaluation across retrieval rounds");
 assert.match(home, /function searchSignature\(\)/);
 assert.match(home, /return \["job","location","keywords","required","preferred","additional"\]/, "the browser duplicate guard ignores presentation-only preset labels");
+assert.match(home, /round:requestedMode==="more"\?1:0/, "the deep CTA sends the distinct server-side retrieval round");
 assert.match(home, /function searchInputIssue\(payload\)/, "the direct search and Google fallback share a client input guard");
-assert.doesNotMatch(home, /mode==="more"&&signature/, "the primary and secondary CTA share the duplicate-search guard");
+assert.match(home, /mode!=="more"&&signature&&signature===lastSearchSignature/, "the browser blocks repeated initial searches but permits one distinct deep round");
+assert.match(home, /mode==="more"&&searchRound>=1/, "the browser limits the optional advanced round to one run per condition set");
 assert.match(home, /masked-output/, "share masking hides the compact search result summary and message");
 assert.match(home, /classList\.toggle\("masked-output",masked\)/);
 assert.match(home, /masked-pool/, "share masking hides a pre-filled manual candidate form");
@@ -207,8 +209,8 @@ assert.match(home, /암호문과 상태 식별용 끝 4자리만 저장/, "BYOK 
 assert.match(home, /링크 방문자가 검색하면 이 사이트에 저장된 동일한 키와 공급자 쿼터를 사용/);
 assert.match(home, /방문자는 키 원문·끝 4자리·설정 화면을 조회하거나 변경할 수 없습니다/);
 assert.match(home, /공개 방문자 20 credits, 공개 사이트 전체 200 credits/);
-assert.match(home, /키워드당 2개의 basic 검색면/);
-assert.match(home, /정확 역할어와 검증된 전문근거 검색면/);
+assert.match(home, /초기 검색은 키워드당 역할어·전문근거 basic 검색면 2개/);
+assert.match(home, /선택형 심층 검색은 프리셋 전문근거를 advanced로 다시 탐색/);
 assert.doesNotMatch(home, /실제 advanced 검색|검색 1회 최대 20명|발견 검색어/);
 assert.match(home, /capabilities\.role==="public"\?"공개 링크 · 일일 검색 한도 적용"/);
 assert.match(home, /byId\("parity-panel"\)\.classList\.toggle\("hidden",capabilities\.role!=="owner"\)/);
@@ -280,27 +282,37 @@ const mergeSandbox = {
     id: "manual-1", name: "Human Verified", company: "Verified Co", title: "Verified CPO", location: "Seoul",
     score: 92, coverage: "High", summary: "Human-reviewed evidence", tags: ["원문 확인"], verify: "완료",
     url: "https://www.linkedin.com/in/human-verified", manual: true, auto: false,
-    sources: [{ uri: "https://www.linkedin.com/in/human-verified", title: "LinkedIn" }], matchedKeywords: ["CPO"],
+    sources: [{ uri: "https://www.linkedin.com/in/human-verified", title: "LinkedIn" }], matchedKeywords: ["CPO"], retrievalKeywords: ["CPO"], retrievalPaths: ["역할어 · CPO"],
   }, {
     id: "auto-1", name: "Old Auto", company: "Old Co", title: "Old title", location: "Seoul",
     score: 20, coverage: "Low", summary: "Old model evidence", tags: ["old"], verify: "old",
     url: "https://www.linkedin.com/in/auto-refresh", manual: false, auto: true,
-    sources: [{ uri: "https://www.linkedin.com/in/auto-refresh", title: "Old evidence" }], matchedKeywords: ["CISO"],
+    sources: [{ uri: "https://www.linkedin.com/in/auto-refresh", title: "Old evidence" }], matchedKeywords: ["CISO"], retrievalKeywords: ["CISO"], retrievalPaths: ["역할어 · CISO"],
+  }, {
+    id: "auto-strong", name: "Strong Initial", company: "Strong Co", title: "CISO / CPO", location: "Seoul",
+    score: 96, coverage: "High", summary: "Strong initial role and responsibility evidence", tags: ["strong"], verify: "initial",
+    url: "https://www.linkedin.com/in/auto-strong", manual: false, auto: true, retrievalScore: 91,
+    sources: [{ uri: "https://www.linkedin.com/in/auto-strong", title: "Strong initial evidence" }], matchedKeywords: ["CISO", "CPO"], retrievalKeywords: ["CISO"], retrievalPaths: ["역할어 · CISO"],
   }],
   mergeInput: [{
     name: "Model Rewrite", company: "Model Co", title: "Model CPO", location: "Busan", score: 99, coverage: "High",
     summary: "Model evidence", koreaEvidence: "Korea privacy", koreaEvidenceLevel: "strong", tags: ["개인정보 프로그램"], verify: "재확인",
-    url: "https://linkedin.com/in/human-verified/", retrievalScore: 93, sources: [{ uri: "https://example.com/new-evidence", title: "New evidence" }], matchedKeywords: ["Head of Privacy"],
+    url: "https://linkedin.com/in/human-verified/", retrievalScore: 93, sources: [{ uri: "https://example.com/new-evidence", title: "New evidence" }], matchedKeywords: ["Head of Privacy"], retrievalKeywords: [], retrievalPaths: ["심층근거 · 개인정보보호 · 거버넌스 성과"],
     rawScore: 42, scoreNote: "공개 원문의 키워드·직무 신호 배점 합계", scoreBreakdown: [{ id: "privacy_program", label: "개인정보 프로그램", keyword: "privacy program", points: 22 }],
   }, {
     name: "Fresh Auto", company: "Fresh Co", title: "Fresh CPO", location: "Seoul", score: 88, coverage: "High",
     summary: "New model evidence", koreaEvidence: "PIPA", koreaEvidenceLevel: "strong", tags: ["privacy"], verify: "new",
-    url: "https://www.linkedin.com/in/auto-refresh", retrievalScore: 87, sources: [{ uri: "https://example.com/refreshed", title: "Refreshed evidence" }], matchedKeywords: ["CPO"],
+    url: "https://www.linkedin.com/in/auto-refresh", retrievalScore: 87, sources: [{ uri: "https://example.com/refreshed", title: "Refreshed evidence" }], matchedKeywords: ["CPO"], retrievalKeywords: [], retrievalPaths: ["심층근거 · 개인정보보호 · 거버넌스 성과"],
     rawScore: 88, scoreNote: "공개 원문의 키워드·직무 신호 배점 합계", scoreBreakdown: [{ id: "executive_privacy_governance", label: "CPO 거버넌스", keyword: "CPO", points: 20 }],
   }, {
     name: "New Search Candidate", company: "New Co", title: "CISO", location: "Seoul", score: 70, coverage: "High",
     summary: "Search evidence", koreaEvidence: "ISMS-P", koreaEvidenceLevel: "strong", tags: ["ISMS 심사"], verify: "원문 확인",
     url: "https://www.linkedin.com/in/new-search-candidate", sources: [{ uri: "https://www.linkedin.com/in/new-search-candidate", title: "Evidence" }], matchedKeywords: ["정보보호실장"],
+  }, {
+    name: "Weaker Deep Rewrite", company: "Deep Co", title: "Privacy Advisor", location: "UNKNOWN", score: 31, coverage: "Low",
+    summary: "A weaker deep-round excerpt", koreaEvidence: "Korea privacy", koreaEvidenceLevel: "weak", tags: ["deep"], verify: "deep",
+    url: "https://www.linkedin.com/in/auto-strong", retrievalScore: 84, sources: [{ uri: "https://www.linkedin.com/in/auto-strong", title: "Deep evidence" }], matchedKeywords: [],
+    retrievalKeywords: [], retrievalPaths: ["심층근거 · Privacy · AI 거버넌스 리더"],
   }],
 };
 vm.createContext(mergeSandbox);
@@ -310,7 +322,7 @@ vm.runInContext([
   extractBrowserFunction(home, "mergeSearchCandidates"),
   "mergeResult=mergeSearchCandidates(mergeInput);",
 ].join("\n"), mergeSandbox);
-assert.deepEqual({ ...mergeSandbox.mergeResult }, { added: 1, updated: 2, total: 3 });
+assert.deepEqual({ ...mergeSandbox.mergeResult }, { added: 1, updated: 3, total: 4 });
 assert.equal(mergeSandbox.candidates[0].manual, true);
 assert.equal(mergeSandbox.candidates[0].score, 92);
 assert.equal(mergeSandbox.candidates[0].summary, "Human-reviewed evidence");
@@ -320,6 +332,8 @@ assert.equal(mergeSandbox.candidates[0].koreaEvidenceLevel, "strong");
 assert.equal(mergeSandbox.candidates[0].retrievalScore, 93);
 assert.equal(mergeSandbox.candidates[0].sources.length, 2);
 assert.deepEqual(Array.from(mergeSandbox.candidates[0].matchedKeywords), ["CPO", "Head of Privacy"]);
+assert.deepEqual(Array.from(mergeSandbox.candidates[0].retrievalKeywords), ["CPO"]);
+assert.deepEqual(Array.from(mergeSandbox.candidates[0].retrievalPaths), ["역할어 · CPO", "심층근거 · 개인정보보호 · 거버넌스 성과"]);
 assert.equal(mergeSandbox.candidates[0].scoreNote, "사람이 입력한 참고점수 · 아래는 자동 검색에서 확인된 직무 신호");
 assert.deepEqual(Array.from(mergeSandbox.candidates[0].scoreBreakdown, (signal) => ({ ...signal })), [{ id: "privacy_program", label: "개인정보 프로그램", keyword: "privacy program", strength: "clue", strengthLabel: "확인할 단서", points: 22, maxPoints: 22 }]);
 assert.equal(mergeSandbox.candidates[1].id, "auto-1");
@@ -330,9 +344,17 @@ assert.equal(mergeSandbox.candidates[1].koreaEvidence, "PIPA");
 assert.equal(mergeSandbox.candidates[1].koreaEvidenceLevel, "strong");
 assert.equal(mergeSandbox.candidates[1].retrievalScore, 87);
 assert.equal(mergeSandbox.candidates[1].sources.length, 2);
+assert.deepEqual(Array.from(mergeSandbox.candidates[1].matchedKeywords), ["CISO", "CPO"]);
+assert.deepEqual(Array.from(mergeSandbox.candidates[1].retrievalKeywords), ["CISO"]);
+assert.deepEqual(Array.from(mergeSandbox.candidates[1].retrievalPaths), ["역할어 · CISO", "심층근거 · 개인정보보호 · 거버넌스 성과"]);
 assert.equal(mergeSandbox.candidates[1].rawScore, 88);
 assert.deepEqual(Array.from(mergeSandbox.candidates[1].scoreBreakdown, (signal) => ({ ...signal })), [{ id: "executive_privacy_governance", label: "CPO 거버넌스", keyword: "CPO", strength: "clue", strengthLabel: "확인할 단서", points: 20, maxPoints: 20 }]);
-assert.equal(mergeSandbox.candidates[2].koreaEvidence, "ISMS-P");
+assert.equal(mergeSandbox.candidates[2].id, "auto-strong");
+assert.equal(mergeSandbox.candidates[2].name, "Strong Initial");
+assert.equal(mergeSandbox.candidates[2].score, 96, "a weaker deep evaluation cannot degrade a stronger initial card");
+assert.equal(mergeSandbox.candidates[2].retrievalScore, 91);
+assert.deepEqual(Array.from(mergeSandbox.candidates[2].retrievalPaths), ["역할어 · CISO", "심층근거 · Privacy · AI 거버넌스 리더"]);
+assert.equal(mergeSandbox.candidates[3].koreaEvidence, "ISMS-P");
 
 const sortSandbox = {
   sortInput: [
@@ -586,8 +608,9 @@ globalThis.fetch = async (url, init = {}) => {
     assert.doesNotMatch(target, /fake|tvly-|[?&]api_key=/i);
     capturedTavilyBody = JSON.parse(init.body);
     capturedTavilyBodies.push(capturedTavilyBody);
-    assert.equal(capturedTavilyBody.search_depth, "basic");
-    assert.equal(Object.hasOwn(capturedTavilyBody, "chunks_per_source"), false, "basic discovery queries do not send the advanced-only chunk control");
+    assert.ok(["basic", "advanced"].includes(capturedTavilyBody.search_depth));
+    if (capturedTavilyBody.search_depth === "advanced") assert.equal(capturedTavilyBody.chunks_per_source, 3);
+    else assert.equal(Object.hasOwn(capturedTavilyBody, "chunks_per_source"), false, "basic discovery queries do not send the advanced-only chunk control");
     assert.deepEqual(capturedTavilyBody.include_domains, ["linkedin.com/in"]);
     assert.equal(capturedTavilyBody.include_raw_content, "text");
     assert.equal(capturedTavilyBody.include_answer, false);
@@ -613,7 +636,7 @@ globalThis.fetch = async (url, init = {}) => {
       const batch = tavilySearchCalls;
       const roleKeyword = capturedTavilyBody.query.match(/^"([^"]+)"/)?.[1] || "CPO";
       return new Response(JSON.stringify({
-        usage: { credits: 1 },
+        usage: { credits: capturedTavilyBody.search_depth === "advanced" ? 2 : 1 },
         results: Array.from({ length: 10 }, (_, index) => ({
           title: `Bulk Korea Candidate ${batch}-${index} - ${roleKeyword} | LinkedIn`,
           url: `https://www.linkedin.com/in/bulk-korea-${batch}-${index}`,
@@ -624,7 +647,7 @@ globalThis.fetch = async (url, init = {}) => {
     }
     return new Response(JSON.stringify({
       query: capturedTavilyBody.query,
-      usage: { credits: 1 },
+      usage: { credits: capturedTavilyBody.search_depth === "advanced" ? 2 : 1 },
       request_id: "fixture-request-id",
       results: [
         ...(/CIO CISO 정보보호센터장 조직 리딩 ISMS-P/i.test(capturedTavilyBody.query) ? [{
@@ -1190,6 +1213,7 @@ assert.equal(search.executedQueries.length, 10);
 assert.deepEqual(search.executedKeywords, ["개인정보보호책임자", "CPO", "CISO", "Head of Privacy", "정보보호실장"]);
 assert.deepEqual(search.searchPlan, {
   strategy: "atomic_role_plus_preset_evidence_facet_union_then_ai",
+  retrievalRound: "initial",
   keywords: search.executedKeywords,
   queryCount: 10,
   queriesPerKeyword: 2,
@@ -1547,8 +1571,28 @@ response = await worker.fetch(request("/api/search", { method: "POST", headers: 
 assert.equal(response.status, 409);
 const duplicateSearch = await response.json();
 assert.equal(duplicateSearch.status, "duplicate_search", "server normalizes keyword order and ignores presentation-only CPO location text when preventing a completed duplicate search");
-assert.equal(tavilySearchCalls - callsBeforeIdempotency, 10, "a completed duplicate does not consume another Tavily query batch");
+assert.equal(tavilySearchCalls - callsBeforeIdempotency, 10, "a completed duplicate in the same retrieval round does not consume another Tavily query batch");
 assert.equal(JSON.stringify(Array.from(DB.signatures.keys())).includes(testOwnerEmail), false, "completed-search state stores only hashes");
+
+DB.lock = null;
+const deepCallsBeforeIdempotency = tavilySearchCalls;
+response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, mode: "more", round: 1, additional: "idempotency fixture" }) }), idempotencyEnv);
+assert.equal(response.status, 200, await response.clone().text());
+const deepIdempotencySearch = await response.json();
+assert.equal(deepIdempotencySearch.searchPlan.retrievalRound, "deep");
+assert.equal(deepIdempotencySearch.searchPlan.searchDepth, "advanced");
+assert.equal(deepIdempotencySearch.searchPlan.queryCount, 5);
+assert.equal(deepIdempotencySearch.searchPlan.queriesPerKeyword, 1);
+assert.deepEqual(deepIdempotencySearch.searchPlan.retrievalLanes, ["deep_professional_evidence"]);
+assert.equal(deepIdempotencySearch.usageCredits, 10);
+assert.equal(tavilySearchCalls - deepCallsBeforeIdempotency, 5);
+assert.ok(deepIdempotencySearch.searchAttempts.every((attempt) => attempt.searchDepth === "advanced" && attempt.lane === "deep_professional_evidence"));
+assert.ok(capturedTavilyBodies.slice(-5).every((body) => body.search_depth === "advanced" && body.chunks_per_source === 3));
+DB.lock = null;
+response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, mode: "more", round: 1, additional: "idempotency fixture" }) }), idempotencyEnv);
+assert.equal(response.status, 409);
+assert.equal((await response.json()).status, "duplicate_search");
+assert.equal(tavilySearchCalls - deepCallsBeforeIdempotency, 5, "a completed deep round is independently deduplicated without colliding with the initial round");
 DB.signatures.clear();
 
 DB.lock = null;
@@ -1883,4 +1927,78 @@ assert.deepEqual(benchmarkCurrent.queryCoverage[1], {
 assert.deepEqual(compareRetrievalBenchmarks(benchmarkCurrent, benchmarkBaseline).recoveredReferenceIds, ["R02"]);
 assert.doesNotMatch(JSON.stringify(benchmarkCurrent), /linkedin\.com|reference-one|reference-two/i, "benchmark output never prints candidate URLs or slugs");
 
-console.log("Worker dual-provider BYOK, dual-lane basic Tavily union, source-bound final Gemini evaluation, private-reference retrieval benchmarking, owner/reviewer/public auth, public rate limits, internal artifact isolation, empty pool, and safety contracts passed");
+const deepAuditNonce = "cd".repeat(16);
+const deepAuditToken = (profileKey) => createHash("sha256").update("direct-xray-retrieval-stage-v1|" + deepAuditNonce + "|" + profileKey, "utf8").digest("hex");
+const benchmarkRounds = evaluateRetrievalRounds({
+  status: "ok",
+  usageCredits: 10,
+  candidates: [
+    { url: "https://www.linkedin.com/in/reference-one" },
+    { url: "https://www.linkedin.com/in/reference-two" },
+  ],
+  sources: [
+    { uri: "https://www.linkedin.com/in/reference-one" },
+    { uri: "https://www.linkedin.com/in/reference-two" },
+  ],
+  retrievalAudit: {
+    schemaVersion: 1,
+    nonce: retrievalAuditNonce,
+    stages: {
+      rawUnique: ["/in/reference-one", "/in/reference-two"].map(retrievalAuditToken),
+      roleBound: ["/in/reference-one", "/in/reference-two"].map(retrievalAuditToken),
+      reviewPool: ["/in/reference-one", "/in/reference-two"].map(retrievalAuditToken),
+      finalReviewPool: ["/in/reference-one", "/in/reference-two"].map(retrievalAuditToken),
+    },
+  },
+}, {
+  status: "ok",
+  usageCredits: 10,
+  candidates: [
+    { url: "https://kr.linkedin.com/in/reference-two/en" },
+    { url: "https://www.linkedin.com/in/reference-three" },
+  ],
+  sources: [
+    { uri: "https://kr.linkedin.com/in/reference-two/en" },
+    { uri: "https://www.linkedin.com/in/reference-three" },
+  ],
+  retrievalAudit: {
+    schemaVersion: 1,
+    nonce: deepAuditNonce,
+    stages: {
+      rawUnique: ["/in/reference-two", "/in/reference-three"].map(deepAuditToken),
+      roleBound: ["/in/reference-two", "/in/reference-three"].map(deepAuditToken),
+      reviewPool: ["/in/reference-two", "/in/reference-three"].map(deepAuditToken),
+      finalReviewPool: ["/in/reference-two", "/in/reference-three"].map(deepAuditToken),
+    },
+  },
+}, benchmarkReference);
+assert.equal(benchmarkRounds.schemaVersion, 1);
+assert.deepEqual(benchmarkRounds.reference, {
+  total: 3,
+  initialMatched: 2,
+  deepMatched: 2,
+  deepAdded: 1,
+  unionMatched: 3,
+  initialRecall: 2 / 3,
+  deepRecall: 2 / 3,
+  unionRecall: 1,
+  results: [
+    { id: "R01", initialHit: true, deepHit: false, deepAdded: false, unionHit: true },
+    { id: "R02", initialHit: true, deepHit: true, deepAdded: false, unionHit: true },
+    { id: "R03", initialHit: false, deepHit: true, deepAdded: true, unionHit: true },
+  ],
+});
+assert.deepEqual(benchmarkRounds.pool, {
+  initialUniqueCandidateUrls: 2,
+  deepUniqueCandidateUrls: 2,
+  overlappingCandidateUrls: 1,
+  deepAddedCandidateUrls: 1,
+  unionUniqueCandidateUrls: 3,
+});
+assert.deepEqual(benchmarkRounds.stageAudit.unionCounts, { rawUnique: 3, roleBound: 3, reviewPool: 3, finalReviewPool: 3 });
+assert.deepEqual(benchmarkRounds.stageAudit.deepAddedCounts, { rawUnique: 1, roleBound: 1, reviewPool: 1, finalReviewPool: 1 });
+assert.deepEqual(benchmarkRounds.operations, { initialCredits: 10, deepCredits: 10, totalCredits: 20 });
+assert.equal(benchmarkRounds.acceptance.passed, true);
+assert.doesNotMatch(JSON.stringify(benchmarkRounds), /linkedin\.com|reference-one|reference-two|reference-three/i, "two-round benchmark output never prints candidate URLs or slugs");
+
+console.log("Worker dual-provider BYOK, basic breadth plus advanced deep Tavily rounds, source-bound final Gemini evaluation, privacy-safe union retrieval benchmarking, owner/reviewer/public auth, public rate limits, internal artifact isolation, empty pool, and safety contracts passed");

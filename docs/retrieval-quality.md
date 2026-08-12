@@ -63,6 +63,13 @@ CPO 프리셋의 전문근거 facet은 기준 후보군의 공개 신호 유형�
 
 Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credits로 설명하고 복잡한 검색을 짧은 하위 질의로 나누도록 권장합니다. LinkedIn profile 전용 예시는 `advanced`를 권장하므로, 현재 10개의 `basic` 검색은 10-credit 안에서 검색 폭을 우선한 실험입니다. 단계별 회수율이 계속 0이면 다음 통제 실험은 같은 10-credit에서 5개의 `advanced` 검색으로 depth와 breadth를 직접 비교해야 합니다.
 
+화면의 `심층 검색으로 더 찾기`는 이 통제 실험을 실제 후보 풀 확장 기능으로 연결합니다. 초기 검색을 대체하지 않고, 동일 조건에서 전문근거 facet 5개를 `advanced`로 한 번씩 실행합니다. 서버 중복 방지 서명은 초기·심층 라운드를 구분하고, 브라우저는 URL 기준으로 두 응답을 병합합니다. 같은 프로필이 다시 발견되면 새 평가가 기존 자동 카드를 갱신하되 초기 역할어, 심층 facet, 원문 링크는 합집합으로 남깁니다. 사람이 직접 검증한 카드의 이름·점수·요약은 계속 보존합니다.
+
+```text
+초기: 10 basic queries × 1 credit = 10 credits
+선택 심층: 5 advanced queries × 2 credits = 10 credits
+```
+
 - [Tavily Search API](https://docs.tavily.com/documentation/api-reference/endpoint/search)
 - [Search best practices](https://docs.tavily.com/documentation/best-practices/best-practices-search)
 - [LinkedIn profile search](https://docs.tavily.com/examples/quick-tutorials/linkedin-profile-search)
@@ -115,6 +122,8 @@ Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credi
 - query별 metric은 역할어 검색과 facet 검색 각각의 raw, unique, direct/adjacent/expanded, Korea evidence tier, 최종 후보 수와 `evidenceFacetId`·`evidenceGate`를 보존함
 - 동일 프로필이 여러 검색면에서 반복될 때 발견 경로는 모두 남기되 같은 근거문장은 Gemini에 한 번만 전달함
 - 총 예약 및 실제 사용량은 10 credits로 유지됨
+- 초기·심층 라운드는 각각 최대 10 credits이고 같은 조건에서 각 라운드는 한 번만 실행됨
+- 심층 재발견이 기존 URL을 중복 추가하지 않고 역할어·검색 키워드·초기/심층 발견 경로를 합집합으로 보존함
 - 요청별 nonce로 해시된 기준 URL이 raw URL, 역할 결속, 검토 풀, 최종 카드 중 어느 단계에서 사라졌는지 URL 노출 없이 측정됨
 
 ## 다음 live 판정 기준
@@ -158,6 +167,14 @@ Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credi
 ```powershell
 node scripts/benchmark-retrieval.mjs --reference qa/reference-urls.json --response qa/current-response.json --baseline-response qa/baseline-response.json --enforce
 ```
+
+초기 검색과 선택형 심층 검색을 각각 저장했다면 두 라운드의 중복과 순증 회수를 함께 비교한다.
+
+```powershell
+node scripts/benchmark-retrieval.mjs --reference qa/reference-urls.json --response qa/current-initial-response.json --deep-response qa/current-deep-response.json --maximum-total-credits 20 --enforce
+```
+
+`roundComparison`은 `initialMatched`, `deepAdded`, `unionMatched`와 후보 풀의 URL 중복 수만 출력한다. 이름·URL·slug는 출력하지 않으며, 요청마다 nonce가 달라도 비공개 레퍼런스 순서의 `R01..Rn` 단위로 단계별 합집합을 계산한다.
 
 승인된 운영 배포를 다음 일일 한도 초기화 후 한 번 실행하고 응답을 저장할 때:
 

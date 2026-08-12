@@ -753,7 +753,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         <div class="pool-principle"><strong>점수 읽는 법</strong><span>AI 참고점수는 공개 원문에서 확인된 직무 키워드·신호의 배점 합계이며 후보 정렬에만 사용합니다. 카드의 실제 매칭 문구와 원문 문장을 보고 사람이 확인할 가치가 있는지 판단하세요.</span></div>
         <div class="cards" id="candidate-grid"></div>
         <div class="pool-actions">
-          <button class="btn primary" id="more-button" type="button">키워드 바꿔 더 찾기</button>
+          <button class="btn primary" id="more-button" type="button">심층 검색으로 더 찾기</button>
           <button class="btn" id="reset-button" type="button">후보 풀 비우기</button>
         </div>
         <details class="manual" id="manual-add">
@@ -782,7 +782,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         <h3>Tavily Search · 후보 검색</h3>
         <div class="key-meta" id="tavily-key-meta">저장 상태 확인 중</div>
         <div class="field"><label for="tavily-key">새 Tavily API 키</label><input id="tavily-key" type="password" autocomplete="off" spellcheck="false" placeholder="tvly-…" maxlength="512"></div>
-        <p class="muted" style="font-size:11px;line-height:1.55">버튼을 누를 때만 <code>linkedin.com/in</code> 공개 프로필로 제한해 키워드당 2개의 basic 검색면을 실행합니다. CPO 프리셋은 정확 역할어와 검증된 전문근거 검색면을 사용하고, 자유입력은 두 검색면 모두 역할어에 결속합니다. 키워드는 최대 5줄·검색 1회 최대 10 credits입니다. 연결 테스트는 무료 usage 조회입니다. 기본 일일 안전 한도는 공개 방문자 20 credits, 공개 사이트 전체 200 credits, 소유자 200 credits이며 같은 조건의 완료 검색은 15분간 서버에서도 중복 실행을 막습니다. 필수·우대 조건은 검색어에 섞지 않고 마지막 Gemini 평가에만 사용합니다. 앱 DB에는 검색 결과를 저장하지 않지만 Tavily 측 query 처리·로그 가능성은 있으므로, 비공개 후보정보를 입력하지 마세요.</p>
+        <p class="muted" style="font-size:11px;line-height:1.55">버튼을 누를 때만 <code>linkedin.com/in</code> 공개 프로필로 제한합니다. 초기 검색은 키워드당 역할어·전문근거 basic 검색면 2개를 실행하고, 선택형 심층 검색은 프리셋 전문근거를 advanced로 다시 탐색해 현재 탭의 후보 풀에 URL 중복 제거 후 합칩니다. 키워드는 최대 5줄이며 각 라운드는 최대 10 credits입니다. 연결 테스트는 무료 usage 조회입니다. 기본 일일 안전 한도는 공개 방문자 20 credits, 공개 사이트 전체 200 credits, 소유자 200 credits이며 같은 조건·같은 라운드의 완료 검색은 15분간 서버에서도 중복 실행을 막습니다. 필수·우대 조건은 검색어에 섞지 않고 마지막 Gemini 평가에만 사용합니다. 앱 DB에는 검색 결과를 저장하지 않지만 Tavily 측 query 처리·로그 가능성은 있으므로, 비공개 후보정보를 입력하지 마세요.</p>
         <div id="tavily-settings-message" class="search-message hidden"></div>
         <div class="provider-actions"><button class="btn danger" id="tavily-key-delete" type="button">키 삭제</button><button class="btn" id="tavily-key-test" type="button">연결 테스트</button><button class="btn primary" id="tavily-key-save" type="button">암호화 저장</button></div>
       </section>
@@ -851,7 +851,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
           ? preset.description+" · 평가 프로필 "+preset.evaluationProfile
           : "프리셋에 없는 직무를 직접 입력합니다. 직무 키워드 일치만 자동 검증하고 세부 적합성은 사람이 확인합니다.";
       }
-      function setBusy(value){busy=value;byId("search-button").disabled=value||!capabilities.canSearch;byId("more-button").disabled=value||!capabilities.canSearch||!lastSearchSignature;byId("reset-button").disabled=value||(!candidates.length&&!lastSearchSignature);byId("search-button").textContent=value?"키워드별 검색 중…":"키워드별 후보 찾기";byId("more-button").textContent=value?"키워드별 검색 중…":"키워드 바꿔 더 찾기"}
+      function setBusy(value){busy=value;byId("search-button").disabled=value||!capabilities.canSearch;byId("more-button").disabled=value||!capabilities.canSearch||!lastSearchSignature||searchRound>=1;byId("reset-button").disabled=value||(!candidates.length&&!lastSearchSignature);byId("search-button").textContent=value?"키워드별 검색 중…":"키워드별 후보 찾기";byId("more-button").textContent=value?"심층 검색 중…":searchRound>=1?"심층 검색 완료":"심층 검색으로 더 찾기"}
       function setApiStatus(kind,text){byId("api-dot").className="dot "+kind;byId("api-status").textContent=text}
       function setParity(id,state){for(var i=0;i<parity.length;i++){if(parity[i].id===id)parity[i].state=state}renderParity()}
       function renderParity(){
@@ -939,7 +939,7 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
           var signalChips=masked?"<span class='signal-chip'><span><b>점수 근거 가림</b></span></span>":scoreBreakdown.map(function(signal){var keyword=String(signal&&signal.keyword||"");var points=Math.max(0,Math.min(100,Number(signal&&signal.points)||0));var maxPoints=Math.max(points,Math.min(100,Number(signal&&signal.maxPoints)||points));var strength=String(signal&&signal.strength||"clue").replace(/[^a-z_]/g,"");var strengthLabel=String(signal&&signal.strengthLabel||"확인할 단서");return "<span class='signal-chip "+esc(strength)+"'><span><b>"+esc(signal&&signal.label||"직무 신호")+"</b><small>"+esc(strengthLabel)+(keyword?" · "+esc(keyword):"")+"</small></span><em>+"+esc(points)+(maxPoints>points?"/"+esc(maxPoints):"")+"</em></span>"}).join("");
           if(!signalChips&&!masked)signalChips=(item.tags||[]).map(function(tag){return "<span class='signal-chip'><span><b>"+esc(tag)+"</b><small>직무 신호 확인</small></span><em>확인</em></span>"}).join("")||"<span class='signal-chip'><span><b>사람이 입력한 근거</b><small>공개 원문 직접 확인</small></span><em>확인</em></span>";
           var scoreNote=masked?"점수 산정 설명 가림":String(item.scoreNote||"책임·성과 근거와 확인할 단서를 분리한 참고점수");
-          var visibleRetrievalPaths=retrievalPaths.filter(function(path){return /^전문근거 · /.test(path)}).slice(0,5);if(!visibleRetrievalPaths.length)visibleRetrievalPaths=retrievalPaths.slice(0,5);
+          var visibleRetrievalPaths=retrievalPaths.filter(function(path){return /^(?:전문근거|심층근거) · /.test(path)}).slice(0,5);if(!visibleRetrievalPaths.length)visibleRetrievalPaths=retrievalPaths.slice(0,5);
           var keywordLines="<div class='keyword-lines'><div class='keyword-line'><b>발견 경로</b><span>"+esc(masked?"검색 경로 가림":visibleRetrievalPaths.length?visibleRetrievalPaths.join(" · "):item.manual?"수동 추가":"검색 경로 확인 필요")+"</span></div><div class='keyword-line'><b>프로필 역할어</b><span>"+esc(masked?"역할어 가림":matchedKeywords.length?matchedKeywords.join(" · "):"직접 역할어 미확인 · 전문근거 확인")+"</span></div></div>";
           var koreaEvidenceLevel=String(item.koreaEvidenceLevel||"");
           var koreaEvidenceLabel=koreaEvidenceLevel==="strong"?"한국 직무근거":koreaEvidenceLevel==="weak"?"한국 관련 단서":koreaEvidenceLevel==="unverified"?"한국 근거 미확인":"";
@@ -965,7 +965,8 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         setBusy(busy);
       }
       function formPayload(mode){
-        return {mode:mode||"initial",round:searchRound,preset:byId("preset").value,job:byId("job").value,location:byId("location").value,keywords:byId("keywords").value,required:byId("required").value,preferred:byId("preferred").value,additional:byId("additional").value};
+        var requestedMode=mode==="more"?"more":"initial";
+        return {mode:requestedMode,round:requestedMode==="more"?1:0,preset:byId("preset").value,job:byId("job").value,location:byId("location").value,keywords:byId("keywords").value,required:byId("required").value,preferred:byId("preferred").value,additional:byId("additional").value};
       }
       function searchSignature(){
         var payload=formPayload("signature");
@@ -984,10 +985,13 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
             var existing=candidates[existingIndex];
             var sourceMap={};(existing.sources||[]).concat(item.sources||[]).forEach(function(source){var key=canonicalUrl(source&&source.uri)||safeHttpUrl(source&&source.uri);if(key&&!sourceMap[key])sourceMap[key]=source});
             var keywordMap={};(existing.matchedKeywords||[]).concat(item.matchedKeywords||[]).forEach(function(keyword){var key=String(keyword||"").trim().toLowerCase();if(key&&!keywordMap[key])keywordMap[key]=String(keyword).trim()});
+            var retrievalKeywordMap={};(existing.retrievalKeywords||[]).concat(item.retrievalKeywords||[]).forEach(function(keyword){var key=String(keyword||"").trim().toLowerCase();if(key&&!retrievalKeywordMap[key])retrievalKeywordMap[key]=String(keyword).trim()});
+            var retrievalPathMap={};(existing.retrievalPaths||[]).concat(item.retrievalPaths||[]).forEach(function(path){var key=String(path||"").trim().toLowerCase();if(key&&!retrievalPathMap[key])retrievalPathMap[key]=String(path).trim()});
+            item.sources=Object.keys(sourceMap).map(function(key){return sourceMap[key]}).slice(0,8);item.matchedKeywords=Object.keys(keywordMap).map(function(key){return keywordMap[key]}).slice(0,8);item.retrievalKeywords=Object.keys(retrievalKeywordMap).map(function(key){return retrievalKeywordMap[key]}).slice(0,8);item.retrievalPaths=Object.keys(retrievalPathMap).map(function(key){return retrievalPathMap[key]}).slice(0,10);
             if(existing.manual){
-              candidates[existingIndex]={id:existing.id,name:existing.name,company:existing.company,title:existing.title,location:existing.location,score:existing.score,rawScore:item.rawScore||existing.rawScore||existing.score,scoreNote:"사람이 입력한 참고점수 · 아래는 자동 검색에서 확인된 직무 신호",scoreBreakdown:item.scoreBreakdown.length?item.scoreBreakdown:existing.scoreBreakdown||[],retrievalScore:item.retrievalScore===null?(existing.retrievalScore===undefined?null:existing.retrievalScore):item.retrievalScore,coverage:existing.coverage,summary:existing.summary,koreaEvidence:item.koreaEvidence||existing.koreaEvidence||"",koreaEvidenceLevel:item.koreaEvidenceLevel||existing.koreaEvidenceLevel||"",roleEvidenceLevel:item.roleEvidenceLevel||existing.roleEvidenceLevel||"",evidenceBasis:item.evidenceBasis||existing.evidenceBasis||"",evidenceOrigin:item.evidenceOrigin||existing.evidenceOrigin||"",tags:existing.tags,verify:existing.verify,url:existing.url,manual:true,auto:true,sources:Object.keys(sourceMap).map(function(key){return sourceMap[key]}).slice(0,6),matchedKeywords:Object.keys(keywordMap).map(function(key){return keywordMap[key]}).slice(0,5),retrievalKeywords:item.retrievalKeywords||existing.retrievalKeywords||[],retrievalPaths:item.retrievalPaths||existing.retrievalPaths||[]};
+              candidates[existingIndex]={id:existing.id,name:existing.name,company:existing.company,title:existing.title,location:existing.location,score:existing.score,rawScore:item.rawScore||existing.rawScore||existing.score,scoreNote:"사람이 입력한 참고점수 · 아래는 자동 검색에서 확인된 직무 신호",scoreBreakdown:item.scoreBreakdown.length?item.scoreBreakdown:existing.scoreBreakdown||[],retrievalScore:item.retrievalScore===null?(existing.retrievalScore===undefined?null:existing.retrievalScore):item.retrievalScore,coverage:existing.coverage,summary:existing.summary,koreaEvidence:item.koreaEvidence||existing.koreaEvidence||"",koreaEvidenceLevel:item.koreaEvidenceLevel||existing.koreaEvidenceLevel||"",roleEvidenceLevel:item.roleEvidenceLevel||existing.roleEvidenceLevel||"",evidenceBasis:item.evidenceBasis||existing.evidenceBasis||"",evidenceOrigin:item.evidenceOrigin||existing.evidenceOrigin||"",tags:existing.tags,verify:existing.verify,url:existing.url,manual:true,auto:true,sources:item.sources,matchedKeywords:item.matchedKeywords,retrievalKeywords:item.retrievalKeywords,retrievalPaths:item.retrievalPaths};
             }else{
-              item.id=existing.id;item.sources=Object.keys(sourceMap).map(function(key){return sourceMap[key]}).slice(0,6);item.matchedKeywords=Object.keys(keywordMap).map(function(key){return keywordMap[key]}).slice(0,5);candidates[existingIndex]=item;
+              var existingScore=Number(existing.score)||0,itemScore=Number(item.score)||0;var preferred=itemScore>=existingScore?item:existing;preferred.id=existing.id;preferred.sources=item.sources;preferred.matchedKeywords=item.matchedKeywords;preferred.retrievalKeywords=item.retrievalKeywords;preferred.retrievalPaths=item.retrievalPaths;preferred.retrievalScore=Math.max(Number(existing.retrievalScore)||0,Number(item.retrievalScore)||0)||null;candidates[existingIndex]=preferred;
             }
             updated++
           }
@@ -1067,12 +1071,14 @@ AWS Security, CISSP, CISM, CISA, CCSP</textarea></div>
         if(busy)return;
         var payload=formPayload(mode),issue=searchInputIssue(payload);if(issue){showSearchInputIssue(issue);return}
         var signature=searchSignature();
-        if(signature&&signature===lastSearchSignature){toast("키워드나 평가 조건을 바꾼 뒤 다시 실행하세요. 같은 조건의 중복 검색은 막았습니다.");return}
+        if(mode!=="more"&&signature&&signature===lastSearchSignature){toast("같은 조건의 초기 검색은 이미 완료했습니다. 심층 검색을 누르거나 조건을 바꿔주세요.");return}
+        if(mode==="more"&&(!lastSearchSignature||signature!==lastSearchSignature)){toast("현재 조건으로 초기 검색을 먼저 실행한 뒤 심층 검색을 진행하세요.");return}
+        if(mode==="more"&&searchRound>=1){toast("이 조건의 심층 검색은 이미 완료했습니다. 조건을 바꾸면 새 검색을 시작할 수 있습니다.");return}
         setBusy(true);
         startSearchProgress(String(payload.keywords||"").split(/\r?\n/).map(function(value){return value.trim()}).filter(Boolean).length);
         try{
           var response=await fetch("/api/search",{method:"POST",headers:{"content-type":"application/json","x-cpo-search":"1"},body:JSON.stringify(payload)});
-          var data=await response.json();if((data.status==="ok"||data.status==="no_candidates")&&Array.isArray(data.executedQueries)&&data.executedQueries.length)lastSearchSignature=signature;showSearchResult(data);
+          var data=await response.json();if((data.status==="ok"||data.status==="no_candidates")&&Array.isArray(data.executedQueries)&&data.executedQueries.length){lastSearchSignature=signature;searchRound=mode==="more"?1:0}showSearchResult(data);
         }catch(error){showSearchResult({status:"network_error",message:"네트워크 요청을 완료하지 못했습니다. 잠시 후 다시 시도하거나 Google X-ray fallback을 사용하세요.",fallbackUrl:fallbackUrl})}
         finally{setBusy(false)}
       }
@@ -1460,6 +1466,7 @@ function normalizedSearchSignatureInput(input, executedKeywords) {
     required: normalize(input.required, 1200),
     preferred: normalize(input.preferred, 1200),
     additional: normalize(input.additional, 800),
+    retrievalRound: retrievalRoundFor(input),
   });
 }
 
@@ -1861,9 +1868,14 @@ function xrayQueryFor(input) {
   return xrayQueriesFor(input)[0] || 'site:linkedin.com/in "' + role + '" Korea';
 }
 
-const TAVILY_RETRIEVAL_LANES = Object.freeze(["role_identity", "professional_evidence"]);
-const TAVILY_RETRIEVAL_DEPTH = "basic";
-const TAVILY_RETRIEVAL_CREDIT_COST = 1;
+const TAVILY_BASIC_RETRIEVAL_DEPTH = "basic";
+const TAVILY_BASIC_RETRIEVAL_CREDIT_COST = 1;
+const TAVILY_DEEP_RETRIEVAL_DEPTH = "advanced";
+const TAVILY_DEEP_RETRIEVAL_CREDIT_COST = 2;
+
+function retrievalRoundFor(input) {
+  return compactText(input && input.mode, 20).toLowerCase() === "more" && Number(input && input.round) === 1 ? "deep" : "initial";
+}
 
 function identityRetrievalContextFor(input, keyword) {
   const preset = directXrayPresetFor(input);
@@ -1883,6 +1895,7 @@ function tavilyQueryPlanFor(input) {
   const workContext = compactText(input.location, 80).replace(/"/g, " ");
   const preset = directXrayPresetFor(input);
   const evidenceFacets = preset && Array.isArray(preset.evidenceRetrievalFacets) ? preset.evidenceRetrievalFacets : [];
+  const retrievalRound = retrievalRoundFor(input);
   return searchKeywordBatchFor(input).flatMap((keyword, keywordIndex) => {
     const role = safeSearchKeyword(keyword);
     const identityContext = identityRetrievalContextFor(input, keyword);
@@ -1890,27 +1903,29 @@ function tavilyQueryPlanFor(input) {
     const evidenceQuery = evidenceFacet
       ? compactText(evidenceFacet.query, 300)
       : compactText('"' + role + '" LinkedIn profile ' + [workContext, "professional experience"].filter(Boolean).join(" "), 300);
-    return [{
+    const roleQuery = {
       id: normalizedEvidenceText(role) + ":role_identity",
       keyword,
       lane: "role_identity",
       discoveryLabel: "역할어 · " + role,
       roleKeywordRequired: true,
       query: compactText('"' + role + '" LinkedIn people profile ' + identityContext, 300),
-      searchDepth: TAVILY_RETRIEVAL_DEPTH,
-      maxCredits: TAVILY_RETRIEVAL_CREDIT_COST,
-    }, {
-      id: evidenceFacet ? "facet:" + normalizedEvidenceText(evidenceFacet.id) : normalizedEvidenceText(role) + ":professional_evidence",
+      searchDepth: TAVILY_BASIC_RETRIEVAL_DEPTH,
+      maxCredits: TAVILY_BASIC_RETRIEVAL_CREDIT_COST,
+    };
+    const evidenceQuerySpec = {
+      id: evidenceFacet ? "facet:" + normalizedEvidenceText(evidenceFacet.id) + (retrievalRound === "deep" ? ":deep" : "") : normalizedEvidenceText(role) + ":professional_evidence" + (retrievalRound === "deep" ? ":deep" : ""),
       keyword,
-      lane: "professional_evidence",
-      discoveryLabel: evidenceFacet ? "전문근거 · " + compactText(evidenceFacet.label, 120) : "역할어+전문근거 · " + role,
+      lane: retrievalRound === "deep" ? "deep_professional_evidence" : "professional_evidence",
+      discoveryLabel: evidenceFacet ? (retrievalRound === "deep" ? "심층근거 · " : "전문근거 · ") + compactText(evidenceFacet.label, 120) : (retrievalRound === "deep" ? "심층 역할근거 · " : "역할어+전문근거 · ") + role,
       evidenceFacetId: evidenceFacet ? compactText(evidenceFacet.id, 80) : null,
       evidenceGate: evidenceFacet ? compactText(evidenceFacet.evidenceGate, 80) || "adjacent_responsibility" : null,
       roleKeywordRequired: !evidenceFacet,
       query: evidenceQuery,
-      searchDepth: TAVILY_RETRIEVAL_DEPTH,
-      maxCredits: TAVILY_RETRIEVAL_CREDIT_COST,
-    }];
+      searchDepth: retrievalRound === "deep" ? TAVILY_DEEP_RETRIEVAL_DEPTH : TAVILY_BASIC_RETRIEVAL_DEPTH,
+      maxCredits: retrievalRound === "deep" ? TAVILY_DEEP_RETRIEVAL_CREDIT_COST : TAVILY_BASIC_RETRIEVAL_CREDIT_COST,
+    };
+    return retrievalRound === "deep" ? [evidenceQuerySpec] : [roleQuery, evidenceQuerySpec];
   });
 }
 
@@ -3146,7 +3161,7 @@ async function retrievalAuditFor(nonce, preparedSources, finalSources) {
   };
 }
 
-async function callTavilySearch(apiKey, query, input, searchDepth = TAVILY_RETRIEVAL_DEPTH) {
+async function callTavilySearch(apiKey, query, input, searchDepth = TAVILY_BASIC_RETRIEVAL_DEPTH) {
   const started = Date.now();
   const normalizedDepth = searchDepth === "advanced" ? "advanced" : "basic";
   const response = await fetch("https://api.tavily.com/search", {
@@ -3519,18 +3534,24 @@ async function handleSourcingSearch(request, env) {
     const executedQueries = retrievalPlan.map((item) => item.query);
     const locationPolicy = locationPolicyFor(input);
     const koreaProfessionalContext = usesKoreaProfessionalContext(input);
+    const retrievalRound = retrievalRoundFor(input);
+    const retrievalLanes = Array.from(new Set(retrievalPlan.map((item) => item.lane)));
+    const searchDepths = Array.from(new Set(retrievalPlan.map((item) => item.searchDepth)));
     const evidenceFacetIds = retrievalPlan.filter((item) => item.evidenceFacetId).map((item) => item.evidenceFacetId);
     const searchPlan = {
-      strategy: evidenceFacetIds.length ? "atomic_role_plus_preset_evidence_facet_union_then_ai" : "atomic_dual_lane_union_role_family_then_ai",
+      strategy: retrievalRound === "deep"
+        ? evidenceFacetIds.length ? "preset_evidence_facets_advanced_then_ai" : "atomic_role_evidence_advanced_then_ai"
+        : evidenceFacetIds.length ? "atomic_role_plus_preset_evidence_facet_union_then_ai" : "atomic_dual_lane_union_role_family_then_ai",
+      retrievalRound,
       keywords: executedKeywords.slice(),
       queryCount: retrievalPlan.length,
-      queriesPerKeyword: TAVILY_RETRIEVAL_LANES.length,
-      retrievalLanes: TAVILY_RETRIEVAL_LANES.slice(),
+      queriesPerKeyword: retrievalPlan.length / executedKeywords.length,
+      retrievalLanes,
       evidenceFacetIds,
       identityQueryContextMode: directXrayPresetFor(input) && directXrayPresetFor(input).identityRetrievalContexts
         ? "preset_keyword_context"
         : "requested_context",
-      searchDepth: TAVILY_RETRIEVAL_DEPTH,
+      searchDepth: searchDepths.length === 1 ? searchDepths[0] : "mixed",
       maxCredits: maximumTavilyCredits,
       actorDailyCreditLimit: actorBudget.limit,
       publicSiteDailyCreditLimit: publicGlobalBudget ? publicGlobalBudget.limit : null,
