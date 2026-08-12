@@ -13,6 +13,7 @@ Direct X-ray Searching의 검색 품질은 후보 카드 수가 아니라 **정�
 | v20 | 100 | 63 | 34 | 15 | 15/34 | 0/10 |
 | v22 | 90 | 81 | 36 | 36 | 36/36 | 0/10 |
 | v23 | 100 | 83 | 49 | 49 | 49/49 | 0/10 |
+| 2026-08-12 운영 배포본 | 100 | 77 | 37 | 37 | 37/37 | 0/10 |
 
 v20→v23에서 Gemini가 구조화하지 않은 소스를 서버 근거로 복구해 membership 손실은 제거했습니다. 그러나 기준 URL recall은 개선되지 않았으므로 남은 병목은 AI 평가가 아니라 검색 공급자 단계입니다.
 
@@ -39,6 +40,8 @@ CPO 프리셋의 전문근거 facet은 기준 후보군의 공개 신호 유형�
 - 장기 개인정보·정보보호 경력과 ISMS-P·PIA 복수 근거
 - Privacy·AI 거버넌스 리더십
 
+이번 쿼리 보강은 개인 이름이나 URL을 검색어에 넣지 않고, 기준 후보군에서 반복된 직무 archetype만 일반화했습니다. `CISO/CPO 겸임`, `CIO/CISO·정보보호센터장·조직 리딩`, `Security Director·platform·cloud·AWS`, `ISMS-P/PIMS·CPPG·PIA·CISSP·CISA`, `IAPP Korea country leadership·AI governance`를 서로 다른 facet에 배치합니다. 이 표현은 회수 단서이고 적합 판정이 아닙니다.
+
 공개 웹 인덱스 표본에서는 영어 설명형 query보다 `정보보호센터장`, `개인정보보호`, `경력 10년`처럼 실제 한국어 프로필에 쓰이는 표현이 레퍼런스형 후보를 더 직접적으로 드러냈습니다. 따라서 한국어/영어 직무 용어를 facet 목적에 맞춰 섞고, `정보보호센터장`·`정보보호부문장`·`Security Director`를 CPO 프리셋 역할군에 추가했습니다. 단, 물리보안·시설보안처럼 개인정보·정보보호·ISMS·cloud 문맥이 없는 동일 직함은 direct 근거로 인정하지 않습니다.
 
 정확 역할어 lane도 단순히 `"CPO" + Korea`로 두지 않습니다. 이 형태는 Chief Product Officer 등 동음이의 프로필이 Tavily의 상위 결과 칸을 소모할 수 있습니다. CPO 프리셋은 각 역할어에 다음처럼 짧은 identity context를 소유합니다.
@@ -58,7 +61,7 @@ CPO 프리셋의 전문근거 facet은 기준 후보군의 공개 신호 유형�
 = 10 basic queries × 1 credit = 10 credits
 ```
 
-Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credits로 설명하고 복잡한 검색을 짧은 하위 질의로 나누도록 권장합니다.
+Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credits로 설명하고 복잡한 검색을 짧은 하위 질의로 나누도록 권장합니다. LinkedIn profile 전용 예시는 `advanced`를 권장하므로, 현재 10개의 `basic` 검색은 10-credit 안에서 검색 폭을 우선한 실험입니다. 단계별 회수율이 계속 0이면 다음 통제 실험은 같은 10-credit에서 5개의 `advanced` 검색으로 depth와 breadth를 직접 비교해야 합니다.
 
 - [Tavily Search API](https://docs.tavily.com/documentation/api-reference/endpoint/search)
 - [Search best practices](https://docs.tavily.com/documentation/best-practices/best-practices-search)
@@ -112,6 +115,7 @@ Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credi
 - query별 metric은 역할어 검색과 facet 검색 각각의 raw, unique, direct/adjacent/expanded, Korea evidence tier, 최종 후보 수와 `evidenceFacetId`·`evidenceGate`를 보존함
 - 동일 프로필이 여러 검색면에서 반복될 때 발견 경로는 모두 남기되 같은 근거문장은 Gemini에 한 번만 전달함
 - 총 예약 및 실제 사용량은 10 credits로 유지됨
+- 요청별 nonce로 해시된 기준 URL이 raw URL, 역할 결속, 검토 풀, 최종 카드 중 어느 단계에서 사라졌는지 URL 노출 없이 측정됨
 
 ## 다음 live 판정 기준
 
@@ -131,7 +135,7 @@ Tavily 공식 문서는 `basic` 검색을 1 credit, `advanced` 검색을 2 credi
 
 ## 재현 가능한 비교 실행
 
-기준 URL과 실제 응답에는 공개 인물 프로필이 포함되므로 Git에 커밋하지 않습니다. 저장소에서 이미 무시하는 `qa/` 아래에 JSON을 두고, benchmark 출력에는 URL·이름 대신 기준 파일 순서에 따른 `R01`~`Rn`만 표시합니다. 회수된 익명 레퍼런스에는 `roleEvidenceLevel`, `evidenceBasis`, 점수·coverage, Korea evidence tier, 역할어/전문근거 lane과 실제 발견 경로를 남깁니다. 미회수 항목은 프로필 URL을 공개 응답에 새로 노출하지 않고 query별 raw→role-bound→final 집계와 함께 해석해 검색 공급자 누락인지 후보 gate 이후 손실인지 다음 live QA에서 좁힙니다.
+기준 URL과 실제 응답에는 공개 인물 프로필이 포함되므로 Git에 커밋하지 않습니다. 저장소에서 이미 무시하는 `qa/` 아래에 JSON을 두고, benchmark 출력에는 URL·이름 대신 기준 파일 순서에 따른 `R01`~`Rn`만 표시합니다. 회수된 익명 레퍼런스에는 `roleEvidenceLevel`, `evidenceBasis`, 점수·coverage, Korea evidence tier, 역할어/전문근거 lane과 실제 발견 경로를 남깁니다. 미회수 항목은 프로필 URL을 공개 응답에 새로 노출하지 않습니다. `--stage-audit` live 실행은 매 요청마다 난수 nonce를 만들고, 서버가 공개 LinkedIn profile key를 그 nonce로 해시해 `rawUnique`, `roleBound`, `reviewPool`, `finalReviewPool` 단계 토큰만 반환합니다. benchmark는 비공개 기준 URL을 같은 방식으로 해시해 `R01`~`Rn`의 단계별 hit만 기록합니다. nonce가 매번 바뀌므로 서로 다른 응답에서 안정적인 프로필 식별자로 사용할 수 없습니다.
 
 `qa/reference-urls.json`은 URL 문자열 배열 또는 `{ "references": [{ "url": "..." }] }` 형식입니다. `qa/search-request.json`은 화면에서 서버로 보내는 것과 같은 검색 조건입니다.
 
@@ -158,7 +162,7 @@ node scripts/benchmark-retrieval.mjs --reference qa/reference-urls.json --respon
 승인된 운영 배포를 다음 일일 한도 초기화 후 한 번 실행하고 응답을 저장할 때:
 
 ```powershell
-node scripts/benchmark-retrieval.mjs --reference qa/reference-urls.json --endpoint https://example.com --request qa/search-request.json --execute-live --save-response qa/current-response.json --enforce
+node scripts/benchmark-retrieval.mjs --reference qa/reference-urls.json --endpoint https://example.com --request qa/search-request.json --execute-live --stage-audit --save-response qa/current-response.json --enforce
 ```
 
 `--execute-live`가 없으면 네트워크 검색을 실행하지 않습니다. live 응답 저장 위치도 ignored `qa/` 내부로 제한합니다. 기본 합격선은 기준 URL 1개 이상 회수, 소스→카드 100%, Tavily 10 credits 이하이며 query·keyword별 최종 기여 편중과 latency는 별도 진단값으로 남깁니다.

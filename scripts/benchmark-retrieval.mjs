@@ -1,10 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash, randomBytes } from "node:crypto";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
 const ignoredQaRoot = resolve(repositoryRoot, "qa");
+const retrievalAuditNamespace = "direct-xray-retrieval-stage-v1";
 
 function finiteNumber(value) {
   if (value == null || value === "") return null;
@@ -92,6 +94,43 @@ function referenceDiagnostic(reference, candidate, source) {
   };
 }
 
+function retrievalAuditToken(nonce, profileKey) {
+  return createHash("sha256").update(retrievalAuditNamespace + "|" + nonce + "|" + profileKey, "utf8").digest("hex");
+}
+
+function retrievalAuditSummary(response, references) {
+  const audit = response && response.retrievalAudit;
+  const nonce = boundedText(audit && audit.nonce, 80).toLowerCase();
+  const stages = audit && audit.stages;
+  if (!audit || audit.schemaVersion !== 1 || !/^[0-9a-f]{32,64}$/.test(nonce) || !stages) return null;
+  const stageNames = ["rawUnique", "roleBound", "reviewPool", "finalReviewPool"];
+  const availableStages = Object.fromEntries(stageNames.map((stage) => [stage, Array.isArray(stages[stage])]));
+  const tokenSets = Object.fromEntries(stageNames.map((stage) => [stage, availableStages[stage] ? new Set(
+    stages[stage].filter((token) => /^[0-9a-f]{64}$/.test(String(token || ""))),
+  ) : null]));
+  const results = references.map((reference) => {
+    const token = retrievalAuditToken(nonce, reference.key);
+    const result = { id: reference.id, ...Object.fromEntries(stageNames.map((stage) => [stage, availableStages[stage] ? tokenSets[stage].has(token) : null])) };
+    result.lossStage = result.rawUnique === false ? "provider_retrieval"
+      : result.roleBound === false ? "role_binding"
+        : result.reviewPool === false ? "review_pool_selection"
+          : result.finalReviewPool === false ? "final_card"
+            : result.finalReviewPool === true ? null : "not_measured";
+    return result;
+  });
+  const counts = Object.fromEntries(stageNames.map((stage) => [stage, availableStages[stage] ? results.filter((record) => record[stage]).length : null]));
+  const lossCounts = Object.fromEntries(["provider_retrieval", "role_binding", "review_pool_selection", "final_card", "not_measured"].map((stage) => [stage, results.filter((record) => record.lossStage === stage).length]));
+  lossCounts.recovered = results.filter((record) => record.lossStage === null).length;
+  return {
+    available: true,
+    availableStages,
+    counts,
+    lossCounts,
+    recall: Object.fromEntries(stageNames.map((stage) => [stage, counts[stage] == null ? null : counts[stage] / references.length])),
+    results,
+  };
+}
+
 function coverageRows(metrics, kind) {
   return (Array.isArray(metrics) ? metrics : []).map((metric, index) => ({
     id: boundedText(kind === "query" ? metric && metric.queryId : metric && metric.keyword, 180) || kind + "-" + String(index + 1),
@@ -131,6 +170,7 @@ function balanceSummary(rows) {
 
 export function evaluateRetrievalBenchmark(response, referenceInput, options = {}) {
   const references = normalizeReferenceRecords(referenceInput);
+  const stageAudit = retrievalAuditSummary(response, references);
   const sources = urlSetFrom(response && response.sources, "uri");
   const candidates = urlSetFrom(response && response.candidates, "url");
   const sourcesByProfile = recordMapByProfileKey(response && response.sources, "uri");
@@ -156,7 +196,7 @@ export function evaluateRetrievalBenchmark(response, referenceInput, options = {
     creditBudget: usageCredits != null && usageCredits <= maximumCredits,
   };
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     status: boundedText(response && response.status, 80) || "unknown",
     reference: {
       total: references.length,
@@ -164,6 +204,7 @@ export function evaluateRetrievalBenchmark(response, referenceInput, options = {
       recallAtReviewPool: matchedReferenceCount / references.length,
       results: referenceResults,
     },
+    stageAudit: stageAudit || { available: false, counts: null, recall: null, results: [] },
     pool: {
       candidateRecords: Array.isArray(response && response.candidates) ? response.candidates.length : 0,
       uniqueCandidateUrls: candidates.unique.size,
@@ -221,7 +262,7 @@ export function compareRetrievalBenchmarks(current, baseline) {
 
 function parseArguments(argv) {
   const parsed = {};
-  const booleans = new Set(["execute-live", "enforce", "help"]);
+  const booleans = new Set(["execute-live", "stage-audit", "enforce", "help"]);
   const valued = new Set([
     "reference", "response", "baseline-response", "endpoint", "request", "save-response",
     "minimum-recall-count", "minimum-source-card-rate", "maximum-credits",
@@ -261,7 +302,7 @@ function helpText() {
     "  node scripts/benchmark-retrieval.mjs --reference qa/reference-urls.json --response qa/current-response.json [--baseline-response qa/baseline-response.json] [--enforce]",
     "",
     "Live request (spends the site's configured provider credits):",
-    "  node scripts/benchmark-retrieval.mjs --reference qa/reference-urls.json --endpoint https://example.com --request qa/search-request.json --execute-live --save-response qa/current-response.json [--enforce]",
+    "  node scripts/benchmark-retrieval.mjs --reference qa/reference-urls.json --endpoint https://example.com --request qa/search-request.json --execute-live --stage-audit --save-response qa/current-response.json [--enforce]",
     "",
     "Optional thresholds: --minimum-recall-count 1 --minimum-source-card-rate 1 --maximum-credits 10",
     "Reference and captured response files belong under ignored qa/ and must not be committed.",
@@ -289,12 +330,14 @@ async function executeLiveSearch(args) {
     throw new Error("Live endpoint must use HTTPS, except localhost test servers.");
   }
   const payload = await readJson(args.request);
+  if (args["stage-audit"]) payload.retrievalAuditNonce = randomBytes(16).toString("hex");
   const upstream = await fetch(endpoint, {
     method: "POST",
     headers: {
       origin: endpoint.origin,
       "content-type": "application/json",
       "x-cpo-search": "1",
+      ...(args["stage-audit"] ? { "x-cpo-retrieval-audit": "1" } : {}),
       "user-agent": "direct-xray-retrieval-benchmark/1.0",
     },
     body: JSON.stringify(payload),
@@ -321,6 +364,7 @@ export async function runBenchmarkCli(argv) {
   const hasLiveEndpoint = Boolean(args.endpoint);
   if (hasSavedResponse === hasLiveEndpoint) throw new Error("Choose exactly one of --response or --endpoint.");
   if (args["execute-live"] && !hasLiveEndpoint) throw new Error("--execute-live is only valid with --endpoint live mode.");
+  if (args["stage-audit"] && !hasLiveEndpoint) throw new Error("--stage-audit is only valid with --endpoint live mode.");
   if (args["save-response"] && !hasLiveEndpoint) throw new Error("--save-response is only valid with --endpoint live mode.");
   const referenceInput = await readJson(args.reference);
   const live = hasLiveEndpoint ? await executeLiveSearch(args) : null;

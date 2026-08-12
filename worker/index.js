@@ -557,11 +557,11 @@ const DIRECT_XRAY_PRESETS = Object.freeze({
       "보안실장",
     ]),
     evidenceRetrievalFacets: Object.freeze([
-      Object.freeze({ id: "privacy_governance_outcomes", label: "개인정보보호 · 거버넌스 성과", query: "LinkedIn profile Korea 개인정보보호 거버넌스 ISMS-P 사고대응 총괄", evidenceGate: "adjacent_responsibility" }),
-      Object.freeze({ id: "security_org_leadership", label: "정보보호 조직 · 센터·부문 리딩", query: "LinkedIn profile Korea 정보보호센터장 개인정보 ISMS-P", evidenceGate: "adjacent_responsibility" }),
-      Object.freeze({ id: "platform_cloud_leadership", label: "플랫폼 · 클라우드 보안 리딩", query: "LinkedIn profile Korea Security Director platform AWS 개인정보 ISMS-P", evidenceGate: "adjacent_responsibility" }),
-      Object.freeze({ id: "senior_domain_evidence", label: "장기 경력 · ISMS-P · PIA", query: "LinkedIn profile 정보보호 개인정보 경력 10년 ISMS-P PIA AWS", evidenceGate: "senior_multi_signal" }),
-      Object.freeze({ id: "privacy_ai_governance", label: "Privacy · AI 거버넌스 리더", query: "LinkedIn profile Korea privacy AI governance leader PIPA", evidenceGate: "governance_leadership" }),
+      Object.freeze({ id: "privacy_governance_outcomes", label: "개인정보보호 · 거버넌스 성과", query: "LinkedIn profile Korea CISO CPO 개인정보보호 ISMS-P 사고대응", evidenceGate: "adjacent_responsibility" }),
+      Object.freeze({ id: "security_org_leadership", label: "정보보호 조직 · 센터·부문 리딩", query: "LinkedIn profile Korea CIO CISO 정보보호센터장 조직 리딩 ISMS-P", evidenceGate: "adjacent_responsibility" }),
+      Object.freeze({ id: "platform_cloud_leadership", label: "플랫폼 · 클라우드 보안 리딩", query: "LinkedIn profile Korea Security Director platform cloud AWS privacy team leadership", evidenceGate: "adjacent_responsibility" }),
+      Object.freeze({ id: "senior_domain_evidence", label: "장기 경력 · ISMS-P · PIA", query: "LinkedIn profile 정보보호 개인정보 10년 ISMS-P PIMS CPPG PIA CISSP CISA AWS", evidenceGate: "senior_multi_signal" }),
+      Object.freeze({ id: "privacy_ai_governance", label: "Privacy · AI 거버넌스 리더", query: "LinkedIn profile IAPP Korea country leader privacy AI governance", evidenceGate: "governance_leadership" }),
     ]),
     fields: Object.freeze({
       job: "CPO (Chief Privacy Officer)",
@@ -2294,6 +2294,19 @@ function safeLinkedInProfileUrl(value) {
   }
 }
 
+function linkedInProfileKeyForAudit(value) {
+  const safeUrl = safeLinkedInProfileUrl(value);
+  if (!safeUrl) return "";
+  try {
+    const segments = new URL(safeUrl).pathname.split("/").filter(Boolean);
+    if (segments.length !== 2 || segments[0].toLowerCase() !== "in") return "";
+    const slug = decodeURIComponent(segments[1]).normalize("NFKC").toLocaleLowerCase("en-US");
+    return slug ? "/in/" + slug : "";
+  } catch (_) {
+    return "";
+  }
+}
+
 function candidateField(block, field, limit) {
   return candidateFieldDetails(block, field, limit).value;
 }
@@ -3048,6 +3061,11 @@ function safeTavilyResults(payload, input) {
   const expandedEvidenceProfileCount = results.filter((source) => source.roleEvidenceLevel === "expanded").length;
   return {
     sources: results,
+    retrievalAuditProfileKeys: {
+      rawUnique: Array.from(allProfileKeys).map(linkedInProfileKeyForAudit).filter(Boolean),
+      roleBound: Array.from(profileMap.keys()).map(linkedInProfileKeyForAudit).filter(Boolean),
+      reviewPool: results.map((source) => linkedInProfileKeyForAudit(source.url)).filter(Boolean),
+    },
     strictKoreaLocation,
     locationFilteredCount,
     koreaEvidenceFilteredCount: 0,
@@ -3099,6 +3117,32 @@ function safeTavilyResults(payload, input) {
       preGeminiPassedProfileCount: stat.preGeminiPassedProfileCount,
       locationPassedProfileCount: stat.locationPassedProfileCount,
     })),
+  };
+}
+
+const RETRIEVAL_AUDIT_NAMESPACE = "direct-xray-retrieval-stage-v1";
+
+async function retrievalAuditStageTokens(nonce, profileKeys) {
+  const uniqueKeys = Array.from(new Set((Array.isArray(profileKeys) ? profileKeys : []).filter(Boolean))).sort();
+  return Promise.all(uniqueKeys.map((key) => sha256Hex(RETRIEVAL_AUDIT_NAMESPACE + "|" + nonce + "|" + key)));
+}
+
+async function retrievalAuditFor(nonce, preparedSources, finalSources) {
+  if (!nonce) return null;
+  const profileKeys = preparedSources && preparedSources.retrievalAuditProfileKeys || {};
+  const [rawUnique, roleBound, reviewPool, finalReviewPool] = await Promise.all([
+    retrievalAuditStageTokens(nonce, profileKeys.rawUnique),
+    retrievalAuditStageTokens(nonce, profileKeys.roleBound),
+    retrievalAuditStageTokens(nonce, profileKeys.reviewPool),
+    finalSources === undefined
+      ? Promise.resolve(null)
+      : retrievalAuditStageTokens(nonce, (Array.isArray(finalSources) ? finalSources : []).map((source) => linkedInProfileKeyForAudit(source && (source.url || source.uri))).filter(Boolean)),
+  ]);
+  return {
+    schemaVersion: 1,
+    nonce,
+    scope: "request_scoped_linkedin_profile_key",
+    stages: { rawUnique, roleBound, reviewPool, finalReviewPool },
   };
 }
 
@@ -3368,6 +3412,11 @@ async function handleSourcingSearch(request, env) {
     input = JSON.parse(raw);
     if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("invalid payload");
   } catch (_) { return jsonResponse({ status: "invalid_json", message: "검색 조건을 읽지 못했습니다." }, { status: 400 }); }
+  const retrievalAuditRequested = request.headers.get("x-cpo-retrieval-audit") === "1";
+  const retrievalAuditNonce = retrievalAuditRequested ? compactText(input.retrievalAuditNonce, 80).toLowerCase() : "";
+  if (retrievalAuditRequested && !/^[0-9a-f]{32,64}$/.test(retrievalAuditNonce)) {
+    return jsonResponse({ status: "invalid_retrieval_audit", message: "검색 단계 진단 nonce 형식이 올바르지 않습니다." }, { status: 400 });
+  }
   const searchable = normalizePolicyText([input.job, input.location, input.keywords, input.required, input.preferred, input.additional].join(" "));
   if (BLOCKED_SEARCH_PATTERN.test(searchable)) {
     return jsonResponse({ status: "blocked_attribute", message: "연령·국적·시민권·민족 등 보호정보는 검색 요청이나 점수에 사용할 수 없습니다. 한국어·한국 시장·규제 경험처럼 직무 관련 조건으로 바꾸세요." }, { status: 400 });
@@ -3550,6 +3599,7 @@ async function handleSourcingSearch(request, env) {
     const preparedSources = safeTavilyResults({ queryResults: tavilyQueryResults }, input);
     const sources = preparedSources.sources;
     if (!sources.length) {
+      const retrievalAudit = await retrievalAuditFor(retrievalAuditNonce, preparedSources, []);
       const idempotencyRecorded = await observableCompletedSearchRecord(env, actor.actorHash, signatureHash);
       return jsonResponse({
         status: "no_candidates",
@@ -3582,17 +3632,19 @@ async function handleSourcingSearch(request, env) {
         sourceCappedCount: preparedSources.sourceCappedCount,
         keywordMetrics: preparedSources.keywordStats.map((stat) => ({ ...stat, finalAcceptedCandidateCount: 0 })),
         queryMetrics: preparedSources.queryStats.map((stat) => ({ ...stat, finalAcceptedCandidateCount: 0 })),
+        ...(retrievalAudit ? { retrievalAudit } : {}),
         idempotencyRecorded,
         fallbackUrl,
       }, { status: 422 });
     }
+    const preEvaluationRetrievalAudit = await retrievalAuditFor(retrievalAuditNonce, preparedSources);
     let result;
     try { result = await callGeminiSourcing(geminiKey, sourcingPrompt(input, sources)); } catch (error) {
       console.error("gemini_analysis_network_error", JSON.stringify({
         name: compactText(error && error.name, 80) || "Error",
         message: safeUpstreamErrorMessage(error && error.message),
       }));
-      return jsonResponse({ status: "network_error", message: "개별 검색과 URL 통합은 완료됐지만 Gemini 최종 평가 네트워크 호출에 실패했습니다. 후보 풀에는 병합하지 않았습니다.", plannedQueries, executedQueries, executedKeywords, searchPlan, searchAttempts, usageCredits, fallbackUrl }, { status: 502 });
+      return jsonResponse({ status: "network_error", message: "개별 검색과 URL 통합은 완료됐지만 Gemini 최종 평가 네트워크 호출에 실패했습니다. 후보 풀에는 병합하지 않았습니다.", plannedQueries, executedQueries, executedKeywords, searchPlan, searchAttempts, usageCredits, ...(preEvaluationRetrievalAudit ? { retrievalAudit: preEvaluationRetrievalAudit } : {}), fallbackUrl }, { status: 502 });
     }
     if (!result || !result.response || !result.response.ok) {
       const status = result && result.response ? result.response.status : 502;
@@ -3618,11 +3670,12 @@ async function handleSourcingSearch(request, env) {
         attempts: result && result.attempts || [],
         responseMode: result && result.responseMode || null,
       }));
-      return jsonResponse({ status: "analysis_api_error", message, httpStatus: status, errorCode: safeError.code, upstreamStatus: safeError.upstreamStatus, reason: safeError.reason, responseMode: result && result.responseMode || null, attemptedModels: result && result.attempts || [], plannedQueries, executedQueries, executedKeywords, searchPlan, searchAttempts, usageCredits, fallbackUrl }, { status: status === 429 ? 429 : 502 });
+      return jsonResponse({ status: "analysis_api_error", message, httpStatus: status, errorCode: safeError.code, upstreamStatus: safeError.upstreamStatus, reason: safeError.reason, responseMode: result && result.responseMode || null, attemptedModels: result && result.attempts || [], plannedQueries, executedQueries, executedKeywords, searchPlan, searchAttempts, usageCredits, ...(preEvaluationRetrievalAudit ? { retrievalAudit: preEvaluationRetrievalAudit } : {}), fallbackUrl }, { status: status === 429 ? 429 : 502 });
     }
     const structured = structuredSearchCandidates(result, sources, input);
     const searchCandidates = structured.candidates;
     const acceptedSources = sources.filter((source) => structured.acceptedSourceIds.has(source.id));
+    const retrievalAudit = await retrievalAuditFor(retrievalAuditNonce, preparedSources, acceptedSources);
     const keywordMetrics = preparedSources.keywordStats.map((stat) => ({
       ...stat,
       finalAcceptedCandidateCount: acceptedSources.filter((source) => Array.isArray(source.retrievalKeywords) && source.retrievalKeywords.includes(stat.keyword)).length,
@@ -3673,6 +3726,7 @@ async function handleSourcingSearch(request, env) {
         sourceCappedCount: preparedSources.sourceCappedCount,
         keywordMetrics,
         queryMetrics,
+        ...(retrievalAudit ? { retrievalAudit } : {}),
         sources: [],
         idempotencyRecorded,
         fallbackUrl,
@@ -3719,6 +3773,7 @@ async function handleSourcingSearch(request, env) {
       sourceCappedCount: preparedSources.sourceCappedCount,
       keywordMetrics,
       queryMetrics,
+      ...(retrievalAudit ? { retrievalAudit } : {}),
       retrievedSourceCount: sources.length,
       acceptedResultCount: acceptedSources.length,
       persistAllowed: false,
