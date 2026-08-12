@@ -1,2 +1,10 @@
 qa/
 *.log
+node_modules/
+coverage/
+.env
+.env.*
+!.env.example
+.wrangler/
+*.pem
+*.key

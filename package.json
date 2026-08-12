@@ -1,5 +1,6 @@
 {
-  "name": "data-analytics-sites-worker",
+  "name": "direct-xray-searching",
+  "description": "Evidence-preserving public LinkedIn X-ray search for human sourcing review",
   "private": true,
   "type": "module",
   "scripts": {
