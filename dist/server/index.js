@@ -524,6 +524,16 @@ const DIRECT_XRAY_PRESETS = Object.freeze({
     description: "개인정보·정보보호 리더를 찾는 첫 번째 역할 프리셋",
     evaluationProfile: "privacy_security",
     locationPolicy: "korea_professional_relevance_residency_agnostic",
+    identityRetrievalContexts: Object.freeze({
+      default: "Korea privacy data protection information security 개인정보보호 정보보호",
+      byKeyword: Object.freeze({
+        "개인정보보호책임자": "Korea 개인정보보호 privacy CPO",
+        cpo: "Korea Chief Privacy Officer privacy 개인정보보호",
+        ciso: "Korea information security privacy 개인정보보호",
+        "head of privacy": "Korea privacy data protection 개인정보보호",
+        "정보보호실장": "Korea 정보보호 개인정보보호 security leadership",
+      }),
+    }),
     roleAliases: Object.freeze([
       "Chief Privacy Officer",
       "Data Protection Officer",
@@ -1855,14 +1865,27 @@ const TAVILY_RETRIEVAL_LANES = Object.freeze(["role_identity", "professional_evi
 const TAVILY_RETRIEVAL_DEPTH = "basic";
 const TAVILY_RETRIEVAL_CREDIT_COST = 1;
 
+function identityRetrievalContextFor(input, keyword) {
+  const preset = directXrayPresetFor(input);
+  const declared = preset && preset.identityRetrievalContexts;
+  const key = normalizedEvidenceText(keyword);
+  const keywordContext = declared && declared.byKeyword && Object.hasOwn(declared.byKeyword, key)
+    ? declared.byKeyword[key]
+    : "";
+  const requestedContext = usesKoreaProfessionalContext(input) ? "Korea" : compactText(input && input.location, 80);
+  return compactText(keywordContext || declared && declared.default || requestedContext, 180)
+    .replace(/["'`(){}[\]]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function tavilyQueryPlanFor(input) {
-  const koreaProfessionalContext = usesKoreaProfessionalContext(input);
   const workContext = compactText(input.location, 80).replace(/"/g, " ");
   const preset = directXrayPresetFor(input);
   const evidenceFacets = preset && Array.isArray(preset.evidenceRetrievalFacets) ? preset.evidenceRetrievalFacets : [];
   return searchKeywordBatchFor(input).flatMap((keyword, keywordIndex) => {
     const role = safeSearchKeyword(keyword);
-    const identityContext = koreaProfessionalContext ? "Korea" : workContext;
+    const identityContext = identityRetrievalContextFor(input, keyword);
     const evidenceFacet = evidenceFacets.length ? evidenceFacets[keywordIndex % evidenceFacets.length] : null;
     const evidenceQuery = evidenceFacet
       ? compactText(evidenceFacet.query, 300)
@@ -3346,6 +3369,9 @@ async function handleSourcingSearch(request, env) {
       queriesPerKeyword: TAVILY_RETRIEVAL_LANES.length,
       retrievalLanes: TAVILY_RETRIEVAL_LANES.slice(),
       evidenceFacetIds,
+      identityQueryContextMode: directXrayPresetFor(input) && directXrayPresetFor(input).identityRetrievalContexts
+        ? "preset_keyword_context"
+        : "requested_context",
       searchDepth: TAVILY_RETRIEVAL_DEPTH,
       maxCredits: maximumTavilyCredits,
       actorDailyCreditLimit: actorBudget.limit,

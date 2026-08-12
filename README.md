@@ -35,6 +35,7 @@ flowchart LR
 
 - **Extensible presets**: 현재 CPO 테스트 프리셋은 역할어와 검증된 전문근거 검색면을 함께 소유합니다. 다른 역할은 자기 역할어·평가 신호·전문근거 검색면을 별도 프리셋으로 추가할 수 있으며, 커스텀 검색에는 CPO 지식을 임의로 적용하지 않습니다.
 - **Role + evidence retrieval**: 정확한 역할어 검색 5회와 프리셋 전문근거 검색 5회를 같은 10 credits 안에서 합칩니다. CPO 프리셋은 한국어 직함·업무 표현을 포함해 거버넌스 성과, 정보보호 조직장, 플랫폼·클라우드 리더, 장기 개인정보·보안 경력, Privacy·AI 거버넌스 리더 유형을 각각 탐색합니다.
+- **Preset-owned identity context**: `CPO`처럼 동음이의가 많은 역할어는 프리셋이 `Chief Privacy Officer·개인정보보호` 같은 짧은 검색 문맥을 역할어별로 선언합니다. 다른 프리셋도 자기 문맥을 독립적으로 추가할 수 있고, 커스텀 역할은 입력한 업무 문맥만 사용합니다.
 - **Evidence-preserving pool**: Gemini 출력이 후보 풀의 membership gate가 되지 않습니다. 구조화 실패 시 서버가 검색 원문에 결속된 후보를 복구합니다.
 - **Three evidence tiers**: 실제 CPO/CISO 직함은 `direct`, 개인정보·보안 책임·성과는 `adjacent`, 직함은 없지만 장기 경력과 복수 전문근거 또는 Privacy·AI 거버넌스 리더십이 확인되면 `expanded`로 표시합니다. `expanded`는 49점 상한과 `Low/VERIFY`를 적용합니다. 일반 공유 글은 제외하되, 개인정보 전문기관이 후보 이름과 역할을 직접 지명한 공식 문장은 `공식 제3자 지정문`으로 분리해 보존합니다.
 - **Truthful discovery labels**: 카드에는 실제로 발견된 `전문근거 · …` 경로와 프로필 원문에서 확인된 역할어를 분리해 표시합니다. 전문근거 검색으로 찾은 사람을 CPO 키워드 검색 결과로 오표기하지 않습니다.

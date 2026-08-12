@@ -1173,6 +1173,7 @@ assert.deepEqual(search.searchPlan, {
   queriesPerKeyword: 2,
   retrievalLanes: ["role_identity", "professional_evidence"],
   evidenceFacetIds: ["privacy_governance_outcomes", "security_org_leadership", "platform_cloud_leadership", "senior_domain_evidence", "privacy_ai_governance"],
+  identityQueryContextMode: "preset_keyword_context",
   searchDepth: "basic",
   maxCredits: 10,
   actorDailyCreditLimit: 10000,
@@ -1201,6 +1202,13 @@ for (let index = 0; index < search.executedKeywords.length; index += 1) {
   assert.match(capturedTavilyBodies[index * 2].query, keywordPattern);
   assert.doesNotMatch(capturedTavilyBodies[index * 2 + 1].query, keywordPattern, "CPO preset evidence facets discover candidates by responsibility instead of repeating the exact title query");
 }
+const roleIdentityQueries = capturedTavilyBodies.filter((_, index) => index % 2 === 0).map((body) => body.query);
+assert.match(roleIdentityQueries[0], /^"개인정보보호책임자" LinkedIn people profile Korea 개인정보보호 privacy CPO$/i);
+assert.match(roleIdentityQueries[1], /^"CPO" LinkedIn people profile Korea Chief Privacy Officer privacy 개인정보보호$/i);
+assert.match(roleIdentityQueries[2], /^"CISO" LinkedIn people profile Korea information security privacy 개인정보보호$/i);
+assert.match(roleIdentityQueries[3], /^"Head of Privacy" LinkedIn people profile Korea privacy data protection 개인정보보호$/i);
+assert.match(roleIdentityQueries[4], /^"정보보호실장" LinkedIn people profile Korea 정보보호 개인정보보호 security leadership$/i);
+assert.doesNotMatch(roleIdentityQueries[1], /Chief Product Officer|product roadmap/i, "the ambiguous CPO identity query is anchored to privacy without encoding a hiring decision");
 assert.deepEqual(search.searchAttempts.filter((attempt) => attempt.lane === "professional_evidence").map((attempt) => attempt.evidenceFacetId), ["privacy_governance_outcomes", "security_org_leadership", "platform_cloud_leadership", "senior_domain_evidence", "privacy_ai_governance"]);
 assert.ok(search.searchAttempts.filter((attempt) => attempt.lane === "professional_evidence").every((attempt) => attempt.roleKeywordRequired === false && /^전문근거 · /.test(attempt.discoveryLabel)));
 assert.equal(search.candidates.length, search.retrievedSourceCount, "every role-bound source remains in the human review pool instead of being gated by Gemini output");
@@ -1541,6 +1549,7 @@ assert.match(capturedTavilyBody.query, /United States/i);
 assert.doesNotMatch(capturedTavilyBody.query, /currently based in South Korea/i);
 assert.equal(cpoRoleOverride.searchPlan.strategy, "atomic_dual_lane_union_role_family_then_ai", "a custom preset keeps a role-bound generic fallback instead of inheriting CPO domain facets");
 assert.deepEqual(cpoRoleOverride.searchPlan.evidenceFacetIds, []);
+assert.equal(cpoRoleOverride.searchPlan.identityQueryContextMode, "requested_context");
 const customSearchAttempts = cpoRoleOverride.searchAttempts;
 assert.ok(customSearchAttempts.every((attempt) => attempt.roleKeywordRequired === true && attempt.evidenceFacetId === null));
 assert.ok(cpoRoleOverride.executedQueries.every((query, index) => new RegExp(customSearchAttempts[index].keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(query)), "both generic fallback lanes stay bound to the exact role keyword");
