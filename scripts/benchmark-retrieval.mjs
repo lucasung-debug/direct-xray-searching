@@ -244,6 +244,125 @@ export function evaluateRetrievalBenchmark(response, referenceInput, options = {
   };
 }
 
+function roundStageAuditSummary(initial, deep, total) {
+  const stageNames = ["rawUnique", "roleBound", "reviewPool", "finalReviewPool"];
+  const initialResults = new Map((initial.results || []).map((result) => [result.id, result]));
+  const deepResults = new Map((deep.results || []).map((result) => [result.id, result]));
+  const availableStages = Object.fromEntries(stageNames.map((stage) => [stage, Boolean(
+    initial.available
+      && deep.available
+      && initial.availableStages && initial.availableStages[stage]
+      && deep.availableStages && deep.availableStages[stage],
+  )]));
+  const unionCounts = {};
+  const deepAddedCounts = {};
+  for (const stage of stageNames) {
+    if (!availableStages[stage]) {
+      unionCounts[stage] = null;
+      deepAddedCounts[stage] = null;
+      continue;
+    }
+    unionCounts[stage] = 0;
+    deepAddedCounts[stage] = 0;
+    for (let index = 1; index <= total; index += 1) {
+      const id = "R" + String(index).padStart(2, "0");
+      const initialHit = initialResults.get(id) && initialResults.get(id)[stage] === true;
+      const deepHit = deepResults.get(id) && deepResults.get(id)[stage] === true;
+      if (initialHit || deepHit) unionCounts[stage] += 1;
+      if (!initialHit && deepHit) deepAddedCounts[stage] += 1;
+    }
+  }
+  return {
+    available: Object.values(availableStages).some(Boolean),
+    complete: Object.values(availableStages).every(Boolean),
+    availableStages,
+    initialCounts: initial.counts || null,
+    deepCounts: deep.counts || null,
+    unionCounts,
+    deepAddedCounts,
+    unionRecall: Object.fromEntries(stageNames.map((stage) => [
+      stage,
+      unionCounts[stage] == null ? null : unionCounts[stage] / total,
+    ])),
+  };
+}
+
+export function evaluateRetrievalRounds(initialResponse, deepResponse, referenceInput, options = {}) {
+  const references = normalizeReferenceRecords(referenceInput);
+  const initial = evaluateRetrievalBenchmark(initialResponse, referenceInput, options);
+  const deep = evaluateRetrievalBenchmark(deepResponse, referenceInput, options);
+  const initialResults = new Map(initial.reference.results.map((result) => [result.id, result]));
+  const deepResults = new Map(deep.reference.results.map((result) => [result.id, result]));
+  const referenceResults = references.map((reference) => {
+    const initialHit = Boolean(initialResults.get(reference.id) && initialResults.get(reference.id).hit);
+    const deepHit = Boolean(deepResults.get(reference.id) && deepResults.get(reference.id).hit);
+    return {
+      id: reference.id,
+      initialHit,
+      deepHit,
+      deepAdded: deepHit && !initialHit,
+      unionHit: initialHit || deepHit,
+    };
+  });
+  const initialCandidates = urlSetFrom(initialResponse && initialResponse.candidates, "url").unique;
+  const deepCandidates = urlSetFrom(deepResponse && deepResponse.candidates, "url").unique;
+  const candidateUnion = new Set([...initialCandidates, ...deepCandidates]);
+  const overlappingCandidateUrls = Array.from(deepCandidates).filter((key) => initialCandidates.has(key)).length;
+  const initialMatched = referenceResults.filter((result) => result.initialHit).length;
+  const deepMatched = referenceResults.filter((result) => result.deepHit).length;
+  const deepAdded = referenceResults.filter((result) => result.deepAdded).length;
+  const unionMatched = referenceResults.filter((result) => result.unionHit).length;
+  const maximumCreditsPerRound = finiteNumber(options.maximumCredits) ?? 10;
+  const maximumTotalCredits = finiteNumber(options.maximumTotalCredits) ?? maximumCreditsPerRound * 2;
+  const initialCredits = finiteNumber(initialResponse && initialResponse.usageCredits);
+  const deepCredits = finiteNumber(deepResponse && deepResponse.usageCredits);
+  const totalCredits = initialCredits == null || deepCredits == null ? null : initialCredits + deepCredits;
+  const minimumRecallCount = finiteNumber(options.minimumRecallCount) ?? 1;
+  const minimumSourceCardRate = finiteNumber(options.minimumSourceCardRate) ?? 1;
+  const sourcePreservationPassed = (benchmark) => benchmark.pool.uniqueSourceUrls === 0
+    || (benchmark.pool.sourceToCardPreservationRate != null
+      && benchmark.pool.sourceToCardPreservationRate >= minimumSourceCardRate);
+  const checks = {
+    initialResponseCompleted: initial.status === "ok" || initial.status === "no_candidates",
+    deepResponseCompleted: deep.status === "ok" || deep.status === "no_candidates",
+    unionRecallCount: unionMatched >= minimumRecallCount,
+    initialSourceToCardPreservation: sourcePreservationPassed(initial),
+    deepSourceToCardPreservation: sourcePreservationPassed(deep),
+    initialCreditBudget: initialCredits != null && initialCredits <= maximumCreditsPerRound,
+    deepCreditBudget: deepCredits != null && deepCredits <= maximumCreditsPerRound,
+    totalCreditBudget: totalCredits != null && totalCredits <= maximumTotalCredits,
+  };
+  return {
+    schemaVersion: 1,
+    reference: {
+      total: references.length,
+      initialMatched,
+      deepMatched,
+      deepAdded,
+      unionMatched,
+      initialRecall: initialMatched / references.length,
+      deepRecall: deepMatched / references.length,
+      unionRecall: unionMatched / references.length,
+      results: referenceResults,
+    },
+    pool: {
+      initialUniqueCandidateUrls: initialCandidates.size,
+      deepUniqueCandidateUrls: deepCandidates.size,
+      overlappingCandidateUrls,
+      deepAddedCandidateUrls: deepCandidates.size - overlappingCandidateUrls,
+      unionUniqueCandidateUrls: candidateUnion.size,
+    },
+    stageAudit: roundStageAuditSummary(initial.stageAudit, deep.stageAudit, references.length),
+    operations: { initialCredits, deepCredits, totalCredits },
+    acceptance: {
+      thresholds: { minimumRecallCount, minimumSourceCardRate, maximumCreditsPerRound, maximumTotalCredits },
+      checks,
+      passed: Object.values(checks).every(Boolean),
+    },
+    privacy: "Candidate names and profile URLs are intentionally omitted; R01..Rn follow the private reference-file order.",
+  };
+}
+
 export function compareRetrievalBenchmarks(current, baseline) {
   const currentResults = new Map(current.reference.results.map((item) => [item.id, item.hit]));
   const baselineResults = new Map(baseline.reference.results.map((item) => [item.id, item.hit]));
@@ -264,8 +383,8 @@ function parseArguments(argv) {
   const parsed = {};
   const booleans = new Set(["execute-live", "stage-audit", "enforce", "help"]);
   const valued = new Set([
-    "reference", "response", "baseline-response", "endpoint", "request", "save-response",
-    "minimum-recall-count", "minimum-source-card-rate", "maximum-credits",
+    "reference", "response", "deep-response", "baseline-response", "endpoint", "request", "save-response",
+    "minimum-recall-count", "minimum-source-card-rate", "maximum-credits", "maximum-total-credits",
   ]);
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
@@ -299,12 +418,12 @@ function helpText() {
     "Evaluate a Direct X-ray Searching response without printing candidate URLs.",
     "",
     "Saved response:",
-    "  node scripts/benchmark-retrieval.mjs --reference qa/reference-urls.json --response qa/current-response.json [--baseline-response qa/baseline-response.json] [--enforce]",
+    "  node scripts/benchmark-retrieval.mjs --reference qa/reference-urls.json --response qa/current-response.json [--deep-response qa/current-deep-response.json] [--baseline-response qa/baseline-response.json] [--enforce]",
     "",
     "Live request (spends the site's configured provider credits):",
     "  node scripts/benchmark-retrieval.mjs --reference qa/reference-urls.json --endpoint https://example.com --request qa/search-request.json --execute-live --stage-audit --save-response qa/current-response.json [--enforce]",
     "",
-    "Optional thresholds: --minimum-recall-count 1 --minimum-source-card-rate 1 --maximum-credits 10",
+    "Optional thresholds: --minimum-recall-count 1 --minimum-source-card-rate 1 --maximum-credits 10 --maximum-total-credits 20",
     "Reference and captured response files belong under ignored qa/ and must not be committed.",
   ].join("\n");
 }
@@ -366,6 +485,7 @@ export async function runBenchmarkCli(argv) {
   if (args["execute-live"] && !hasLiveEndpoint) throw new Error("--execute-live is only valid with --endpoint live mode.");
   if (args["stage-audit"] && !hasLiveEndpoint) throw new Error("--stage-audit is only valid with --endpoint live mode.");
   if (args["save-response"] && !hasLiveEndpoint) throw new Error("--save-response is only valid with --endpoint live mode.");
+  if (args["deep-response"] && hasLiveEndpoint) throw new Error("--deep-response is only valid with a saved --response. Capture each live round separately before comparing them.");
   const referenceInput = await readJson(args.reference);
   const live = hasLiveEndpoint ? await executeLiveSearch(args) : null;
   const response = live ? live.response : await readJson(args.response);
@@ -374,19 +494,26 @@ export async function runBenchmarkCli(argv) {
     minimumSourceCardRate: numericThreshold(args, "minimum-source-card-rate", 1, 0, 1),
     maximumCredits: numericThreshold(args, "maximum-credits", 10, 0),
   };
+  thresholds.maximumTotalCredits = numericThreshold(args, "maximum-total-credits", thresholds.maximumCredits * 2, 0);
   const benchmark = evaluateRetrievalBenchmark(response, referenceInput, thresholds);
   const output = {
     generatedAt: new Date().toISOString(),
     ...(live ? { httpStatus: live.httpStatus } : {}),
     benchmark,
   };
+  if (args["deep-response"]) {
+    const deepResponse = await readJson(args["deep-response"]);
+    output.deepBenchmark = evaluateRetrievalBenchmark(deepResponse, referenceInput, thresholds);
+    output.roundComparison = evaluateRetrievalRounds(response, deepResponse, referenceInput, thresholds);
+  }
   if (args["baseline-response"]) {
     const baseline = evaluateRetrievalBenchmark(await readJson(args["baseline-response"]), referenceInput, thresholds);
     output.baseline = baseline;
     output.comparison = compareRetrievalBenchmarks(benchmark, baseline);
   }
   process.stdout.write(JSON.stringify(output, null, 2) + "\n");
-  return args.enforce && !benchmark.acceptance.passed ? 1 : 0;
+  const enforcedResult = output.roundComparison || benchmark;
+  return args.enforce && !enforcedResult.acceptance.passed ? 1 : 0;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
