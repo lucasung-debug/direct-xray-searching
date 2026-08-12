@@ -1834,18 +1834,35 @@ function xrayQueryFor(input) {
   return xrayQueriesFor(input)[0] || 'site:linkedin.com/in "' + role + '" Korea';
 }
 
-function tavilyQueriesFor(input) {
-  if (usesKoreaProfessionalContext(input)) {
-    return searchKeywordBatchFor(input).map((keyword) => compactText(
-      '"' + safeSearchKeyword(keyword) + '" LinkedIn people profile ("개인정보보호" OR "정보보호" OR "정보보안" OR "ISMS-P" OR CPPG OR PIPA OR "Korea privacy" OR "Korea security")',
-      300,
-    ));
-  }
-  const workContext = compactText(input.location, 80);
-  return searchKeywordBatchFor(input).map((keyword) => compactText(
-    '"' + safeSearchKeyword(keyword) + '" ' + (workContext ? '"' + workContext.replace(/"/g, " ") + '" ' : "") + "LinkedIn profile",
-    300,
-  ));
+const TAVILY_RETRIEVAL_LANES = Object.freeze(["role_identity", "professional_evidence"]);
+const TAVILY_RETRIEVAL_DEPTH = "basic";
+const TAVILY_RETRIEVAL_CREDIT_COST = 1;
+
+function tavilyQueryPlanFor(input) {
+  const koreaProfessionalContext = usesKoreaProfessionalContext(input);
+  const workContext = compactText(input.location, 80).replace(/"/g, " ");
+  return searchKeywordBatchFor(input).flatMap((keyword) => {
+    const role = safeSearchKeyword(keyword);
+    const identityContext = koreaProfessionalContext ? "Korea" : workContext;
+    const evidenceContext = koreaProfessionalContext
+      ? "Korea privacy security ISMS-P 개인정보보호 정보보호"
+      : [workContext, "professional experience"].filter(Boolean).join(" ");
+    return [{
+      id: normalizedEvidenceText(role) + ":role_identity",
+      keyword,
+      lane: "role_identity",
+      query: compactText('"' + role + '" LinkedIn people profile ' + identityContext, 300),
+      searchDepth: TAVILY_RETRIEVAL_DEPTH,
+      maxCredits: TAVILY_RETRIEVAL_CREDIT_COST,
+    }, {
+      id: normalizedEvidenceText(role) + ":professional_evidence",
+      keyword,
+      lane: "professional_evidence",
+      query: compactText('"' + role + '" LinkedIn profile ' + evidenceContext, 300),
+      searchDepth: TAVILY_RETRIEVAL_DEPTH,
+      maxCredits: TAVILY_RETRIEVAL_CREDIT_COST,
+    }];
+  });
 }
 
 function sourcingPrompt(input, sources) {
@@ -2470,9 +2487,9 @@ function safeTavilyResults(payload, input) {
   const queryResults = payload && Array.isArray(payload.queryResults)
     ? payload.queryResults
     : [{ keyword: "", results: payload && Array.isArray(payload.results) ? payload.results : [] }];
-  const keywordStats = queryResults.map((queryResult) => ({
-    keyword: compactText(queryResult && queryResult.keyword, 100),
-    rawResultCount: Array.isArray(queryResult && queryResult.results) ? queryResult.results.length : 0,
+  const newStat = (values) => ({
+    ...values,
+    rawResultCount: 0,
     uniqueProfileKeys: new Set(),
     roleMatchedProfileKeys: new Set(),
     directRoleProfileKeys: new Set(),
@@ -2482,15 +2499,41 @@ function safeTavilyResults(payload, input) {
     koreaUnverifiedProfileKeys: new Set(),
     preGeminiPassedProfileCount: 0,
     locationPassedProfileCount: 0,
-  }));
-  const keywordStatMap = new Map(keywordStats.map((stat) => [stat.keyword, stat]));
-  const orderedQueryResults = queryResults.slice().sort((left, right) => compactText(left && left.keyword, 100).localeCompare(compactText(right && right.keyword, 100)));
+  });
+  const keywordStats = [];
+  const keywordStatMap = new Map();
+  const queryStats = queryResults.map((queryResult, index) => {
+    const keyword = compactText(queryResult && queryResult.keyword, 100);
+    const queryId = compactText(queryResult && queryResult.queryId, 180) || "query-" + String(index + 1);
+    const lane = compactText(queryResult && queryResult.lane, 80) || "default";
+    const resultCount = Array.isArray(queryResult && queryResult.results) ? queryResult.results.length : 0;
+    let keywordStat = keywordStatMap.get(keyword);
+    if (!keywordStat) {
+      keywordStat = newStat({ keyword });
+      keywordStats.push(keywordStat);
+      keywordStatMap.set(keyword, keywordStat);
+    }
+    keywordStat.rawResultCount += resultCount;
+    return { ...newStat({ queryId, keyword, lane }), rawResultCount: resultCount };
+  });
+  const queryStatMap = new Map(queryStats.map((stat) => [stat.queryId, stat]));
+  const orderedQueryResults = queryResults.map((queryResult, index) => ({
+    ...queryResult,
+    queryId: queryStats[index].queryId,
+    lane: queryStats[index].lane,
+  })).sort((left, right) => compactText(left && left.keyword, 100).localeCompare(compactText(right && right.keyword, 100))
+    || compactText(left && left.lane, 80).localeCompare(compactText(right && right.lane, 80)));
   const interleaved = [];
   const longest = orderedQueryResults.reduce((maximum, queryResult) => Math.max(maximum, Array.isArray(queryResult.results) ? queryResult.results.length : 0), 0);
   for (let rank = 0; rank < longest; rank += 1) {
     for (const queryResult of orderedQueryResults) {
       if (Array.isArray(queryResult.results) && queryResult.results[rank]) {
-        interleaved.push({ raw: queryResult.results[rank], keyword: compactText(queryResult.keyword, 100) });
+        interleaved.push({
+          raw: queryResult.results[rank],
+          keyword: compactText(queryResult.keyword, 100),
+          queryId: compactText(queryResult.queryId, 180),
+          lane: compactText(queryResult.lane, 80),
+        });
       }
     }
   }
@@ -2503,6 +2546,8 @@ function safeTavilyResults(payload, input) {
     allProfileKeys.add(key);
     const keywordStat = keywordStatMap.get(hit.keyword);
     if (keywordStat) keywordStat.uniqueProfileKeys.add(key);
+    const queryStat = queryStatMap.get(hit.queryId);
+    if (queryStat) queryStat.uniqueProfileKeys.add(key);
     const title = redactCandidateText(hit.raw && hit.raw.title, 300);
     const content = tavilyCandidateContent(hit.raw, input, title);
     const evidenceRecord = [title, content].filter(Boolean).join(" · ");
@@ -2513,11 +2558,14 @@ function safeTavilyResults(payload, input) {
       : adjacentProfessionalEvidenceMatch(title, content, input, professionalSignals) ? "adjacent" : "";
     if (!evidenceRecord || !roleEvidenceLevel) continue;
     if (keywordStat) keywordStat.roleMatchedProfileKeys.add(key);
+    if (queryStat) queryStat.roleMatchedProfileKeys.add(key);
     if (keywordStat && roleEvidenceLevel === "direct") keywordStat.directRoleProfileKeys.add(key);
     if (keywordStat && roleEvidenceLevel === "adjacent") keywordStat.adjacentEvidenceProfileKeys.add(key);
+    if (queryStat && roleEvidenceLevel === "direct") queryStat.directRoleProfileKeys.add(key);
+    if (queryStat && roleEvidenceLevel === "adjacent") queryStat.adjacentEvidenceProfileKeys.add(key);
     let profile = profileMap.get(key);
     if (!profile) {
-      profile = { url, titles: [], contents: [], evidenceByKeyword: new Map(), matchedRoleTerms: [], professionalSignals: [], roleEvidenceLevel, retrievalKeywords: [], relevance: null };
+      profile = { url, titles: [], contents: [], evidenceByKeyword: new Map(), matchedRoleTerms: [], professionalSignals: [], roleEvidenceLevel, retrievalKeywords: [], retrievalQueryIds: [], retrievalLanes: [], relevance: null };
       profileMap.set(key, profile);
     }
     if (title && !profile.titles.includes(title)) profile.titles.push(title);
@@ -2534,6 +2582,8 @@ function safeTavilyResults(payload, input) {
     }
     if (roleEvidenceLevel === "direct") profile.roleEvidenceLevel = "direct";
     if (hit.keyword && !profile.retrievalKeywords.includes(hit.keyword)) profile.retrievalKeywords.push(hit.keyword);
+    if (hit.queryId && !profile.retrievalQueryIds.includes(hit.queryId)) profile.retrievalQueryIds.push(hit.queryId);
+    if (hit.lane && !profile.retrievalLanes.includes(hit.lane)) profile.retrievalLanes.push(hit.lane);
     const relevance = Number(hit.raw && hit.raw.score);
     if (Number.isFinite(relevance)) profile.relevance = profile.relevance == null ? relevance : Math.max(profile.relevance, relevance);
   }
@@ -2583,26 +2633,58 @@ function safeTavilyResults(payload, input) {
   const sourceCappedCount = Math.max(0, preparedProfiles.length - 50);
   const selectedProfiles = [];
   const selectedUrls = new Set();
+  const appendByQueryCoverage = (pool, targetSize) => {
+    const queryIds = Array.from(new Set(pool.flatMap((profile) => profile.retrievalQueryIds))).sort((left, right) => left.localeCompare(right));
+    const buckets = new Map(queryIds.map((queryId) => [queryId, pool.filter((profile) => profile.retrievalQueryIds.includes(queryId))]));
+    const cursors = new Map(queryIds.map((queryId) => [queryId, 0]));
+    const coverage = new Map(queryIds.map((queryId) => [queryId, selectedProfiles.filter((profile) => profile.retrievalQueryIds.includes(queryId)).length]));
+    while (selectedProfiles.length < targetSize) {
+      let selected = null;
+      const leastCovered = queryIds.slice().sort((left, right) => (coverage.get(left) || 0) - (coverage.get(right) || 0) || left.localeCompare(right));
+      for (const queryId of leastCovered) {
+        const bucket = buckets.get(queryId) || [];
+        let cursor = cursors.get(queryId) || 0;
+        while (cursor < bucket.length && selectedUrls.has(bucket[cursor].url)) cursor += 1;
+        cursors.set(queryId, cursor);
+        if (cursor >= bucket.length) continue;
+        selected = bucket[cursor];
+        cursors.set(queryId, cursor + 1);
+        break;
+      }
+      if (!selected) break;
+      selectedProfiles.push(selected);
+      selectedUrls.add(selected.url);
+      for (const queryId of selected.retrievalQueryIds) coverage.set(queryId, (coverage.get(queryId) || 0) + 1);
+    }
+    for (const profile of pool) {
+      if (selectedProfiles.length >= targetSize) break;
+      if (selectedUrls.has(profile.url)) continue;
+      selectedProfiles.push(profile);
+      selectedUrls.add(profile.url);
+    }
+  };
   if (koreaProfessionalContext) {
     const tierQuotas = { strong: 34, weak: 10, unverified: 6 };
     for (const level of ["strong", "weak", "unverified"]) {
-      for (const profile of preparedProfiles.filter((item) => item.koreaEvidenceLevel === level).slice(0, tierQuotas[level])) {
-        selectedProfiles.push(profile);
-        selectedUrls.add(profile.url);
-      }
+      appendByQueryCoverage(preparedProfiles.filter((item) => item.koreaEvidenceLevel === level), Math.min(50, selectedProfiles.length + tierQuotas[level]));
     }
   }
-  for (const profile of preparedProfiles) {
-    if (selectedProfiles.length >= 50) break;
-    if (selectedUrls.has(profile.url)) continue;
-    selectedProfiles.push(profile);
-    selectedUrls.add(profile.url);
-  }
+  appendByQueryCoverage(preparedProfiles, 50);
   const results = [];
   for (const profile of selectedProfiles) {
     const profileKey = profile.url.toLowerCase().replace(/\/$/, "");
     for (const keyword of profile.retrievalKeywords) {
       const stat = keywordStatMap.get(keyword);
+      if (stat) {
+        if (profile.koreaEvidenceLevel === "strong") stat.koreaStrongProfileKeys.add(profileKey);
+        else if (profile.koreaEvidenceLevel === "weak") stat.koreaWeakProfileKeys.add(profileKey);
+        else stat.koreaUnverifiedProfileKeys.add(profileKey);
+        stat.preGeminiPassedProfileCount += 1;
+        stat.locationPassedProfileCount += 1;
+      }
+    }
+    for (const queryId of profile.retrievalQueryIds) {
+      const stat = queryStatMap.get(queryId);
       if (stat) {
         if (profile.koreaEvidenceLevel === "strong") stat.koreaStrongProfileKeys.add(profileKey);
         else if (profile.koreaEvidenceLevel === "weak") stat.koreaWeakProfileKeys.add(profileKey);
@@ -2626,6 +2708,8 @@ function safeTavilyResults(payload, input) {
       matchedRoleTerms: profile.matchedRoleTerms.slice().sort((left, right) => left.localeCompare(right)),
       matchedKeywords: profile.matchedRoleTerms.slice().sort((left, right) => left.localeCompare(right)),
       retrievalKeywords: profile.retrievalKeywords.slice().sort((left, right) => left.localeCompare(right)),
+      retrievalQueryIds: profile.retrievalQueryIds.slice().sort((left, right) => left.localeCompare(right)),
+      retrievalLanes: profile.retrievalLanes.slice().sort((left, right) => left.localeCompare(right)),
       relevance: profile.relevance == null ? null : Math.max(0, Math.min(1, profile.relevance)),
     });
   }
@@ -2664,19 +2748,36 @@ function safeTavilyResults(payload, input) {
       preGeminiPassedProfileCount: stat.preGeminiPassedProfileCount,
       locationPassedProfileCount: stat.locationPassedProfileCount,
     })),
+    queryStats: queryStats.map((stat) => ({
+      queryId: stat.queryId,
+      keyword: stat.keyword,
+      lane: stat.lane,
+      rawResultCount: stat.rawResultCount,
+      uniqueProfileCount: stat.uniqueProfileKeys.size,
+      roleMatchedProfileCount: stat.roleMatchedProfileKeys.size,
+      directRoleProfileCount: stat.directRoleProfileKeys.size,
+      adjacentEvidenceProfileCount: stat.adjacentEvidenceProfileKeys.size,
+      koreaEvidencePassedProfileCount: stat.koreaStrongProfileKeys.size,
+      koreaStrongProfileCount: stat.koreaStrongProfileKeys.size,
+      koreaWeakProfileCount: stat.koreaWeakProfileKeys.size,
+      koreaUnverifiedProfileCount: stat.koreaUnverifiedProfileKeys.size,
+      preGeminiPassedProfileCount: stat.preGeminiPassedProfileCount,
+      locationPassedProfileCount: stat.locationPassedProfileCount,
+    })),
   };
 }
 
-async function callTavilySearch(apiKey, query, input) {
+async function callTavilySearch(apiKey, query, input, searchDepth = TAVILY_RETRIEVAL_DEPTH) {
   const started = Date.now();
+  const normalizedDepth = searchDepth === "advanced" ? "advanced" : "basic";
   const response = await fetch("https://api.tavily.com/search", {
     method: "POST",
     headers: { authorization: "Bearer " + apiKey, "content-type": "application/json" },
     body: JSON.stringify({
       query,
       topic: "general",
-      search_depth: "advanced",
-      chunks_per_source: 3,
+      search_depth: normalizedDepth,
+      ...(normalizedDepth === "advanced" ? { chunks_per_source: 3 } : {}),
       max_results: 20,
       include_domains: ["linkedin.com/in"],
       ...(usesStrictKoreaLocation(input) ? { country: "south korea" } : {}),
@@ -2917,6 +3018,8 @@ async function handleSourcingSearch(request, env) {
     return jsonResponse({ status: "non_atomic_keyword", message: "한 줄에는 하나의 직함·역할 키워드만 입력하세요. OR·AND·NOT·슬래시·쉼표·검색 연산자는 쓰지 말고 각각 새 줄로 분리하세요." }, { status: 400 });
   }
   const fallbackUrl = "https://www.google.com/search?q=" + encodeURIComponent(xrayQueryFor(input));
+  const retrievalPlan = tavilyQueryPlanFor(input);
+  const maximumTavilyCredits = retrievalPlan.reduce((sum, item) => sum + item.maxCredits, 0);
   let geminiKey;
   let tavilyKey;
   try {
@@ -2948,7 +3051,6 @@ async function handleSourcingSearch(request, env) {
   try {
     lockToken = await acquireGeminiSearchLock(env);
     if (!lockToken) return jsonResponse({ status: "search_busy", message: "검색이 진행 중이거나 8초 cooldown 중입니다.", fallbackUrl }, { status: 409 });
-    const maximumTavilyCredits = executedKeywords.length * 2;
     const actorBudget = await reserveActorTavilyCredits(env, actor, maximumTavilyCredits);
     if (!actorBudget.allowed) {
       await releaseGeminiSearchLock(env, lockToken, 0);
@@ -2994,19 +3096,23 @@ async function handleSourcingSearch(request, env) {
       return jsonResponse({ status: "daily_limit", message: "사이트 내부 일일 Gemini 호출 안전 예산을 모두 사용했습니다.", fallbackUrl }, { status: 429 });
     }
     const plannedQueries = xrayQueriesFor(input);
-    const executedQueries = tavilyQueriesFor(input);
+    const executedQueries = retrievalPlan.map((item) => item.query);
     const locationPolicy = locationPolicyFor(input);
     const koreaProfessionalContext = usesKoreaProfessionalContext(input);
     const searchPlan = {
-      strategy: "atomic_union_role_family_then_ai",
+      strategy: "atomic_dual_lane_union_role_family_then_ai",
       keywords: executedKeywords.slice(),
-      queryCount: executedKeywords.length,
-      maxCredits: executedKeywords.length * 2,
+      queryCount: retrievalPlan.length,
+      queriesPerKeyword: TAVILY_RETRIEVAL_LANES.length,
+      retrievalLanes: TAVILY_RETRIEVAL_LANES.slice(),
+      searchDepth: TAVILY_RETRIEVAL_DEPTH,
+      maxCredits: maximumTavilyCredits,
       actorDailyCreditLimit: actorBudget.limit,
       publicSiteDailyCreditLimit: publicGlobalBudget ? publicGlobalBudget.limit : null,
       perQueryMaxResults: 20,
       geminiSourceCap: 50,
       reviewPoolMax: SEARCH_REVIEW_POOL_MAX,
+      candidateDiversity: "round_robin_by_query_with_korea_evidence_tiers",
       retrievalWeighting: false,
       retrievalScoreExposed: true,
       exactRoleKeywordGate: false,
@@ -3024,13 +3130,14 @@ async function handleSourcingSearch(request, env) {
     const searchAttempts = [];
     let usageCredits = 0;
     let tavilyLatencyMs = 0;
-    for (let index = 0; index < executedQueries.length; index += 1) {
+    for (let index = 0; index < retrievalPlan.length; index += 1) {
+      const querySpec = retrievalPlan[index];
       let tavilyResult;
-      try { tavilyResult = await callTavilySearch(tavilyKey, executedQueries[index], input); } catch (_) {
-        searchAttempts.push({ provider: "tavily", keyword: executedKeywords[index], status: "network_error", resultCount: 0, credits: 0, latencyMs: 0 });
+      try { tavilyResult = await callTavilySearch(tavilyKey, querySpec.query, input, querySpec.searchDepth); } catch (_) {
+        searchAttempts.push({ provider: "tavily", queryId: querySpec.id, keyword: querySpec.keyword, lane: querySpec.lane, searchDepth: querySpec.searchDepth, status: "network_error", resultCount: 0, credits: 0, latencyMs: 0 });
         return jsonResponse({
           status: "network_error",
-          message: "키워드 ‘" + executedKeywords[index] + "’의 Tavily 검색 네트워크 호출에 실패했습니다. 일부 검색 결과는 후보 풀에 병합하지 않았고 Gemini 평가도 실행하지 않았습니다.",
+          message: "키워드 ‘" + querySpec.keyword + "’의 " + querySpec.lane + " Tavily 검색 네트워크 호출에 실패했습니다. 일부 검색 결과는 후보 풀에 병합하지 않았고 Gemini 평가도 실행하지 않았습니다.",
           plannedQueries,
           executedQueries,
           executedKeywords,
@@ -3044,12 +3151,12 @@ async function handleSourcingSearch(request, env) {
       const credits = Math.max(0, Number(tavilyResult.payload && tavilyResult.payload.usage && tavilyResult.payload.usage.credits) || 0);
       usageCredits += credits;
       const resultCount = Array.isArray(tavilyResult.payload && tavilyResult.payload.results) ? tavilyResult.payload.results.length : 0;
-      searchAttempts.push({ provider: "tavily", keyword: executedKeywords[index], status: tavilyResult.response.status, resultCount, credits, latencyMs: tavilyResult.elapsed });
+      searchAttempts.push({ provider: "tavily", queryId: querySpec.id, keyword: querySpec.keyword, lane: querySpec.lane, searchDepth: querySpec.searchDepth, status: tavilyResult.response.status, resultCount, credits, latencyMs: tavilyResult.elapsed });
       if (!tavilyResult.response.ok) {
         const status = tavilyResult.response.status;
         return jsonResponse({
           status: "search_api_error",
-          message: "키워드 ‘" + executedKeywords[index] + "’ 검색 실패: " + tavilyFailureMessage(status) + " 일부 검색 결과는 후보 풀에 병합하지 않았고 Gemini 평가도 실행하지 않았습니다.",
+          message: "키워드 ‘" + querySpec.keyword + "’의 " + querySpec.lane + " 검색 실패: " + tavilyFailureMessage(status) + " 일부 검색 결과는 후보 풀에 병합하지 않았고 Gemini 평가도 실행하지 않았습니다.",
           httpStatus: status,
           plannedQueries,
           executedQueries,
@@ -3061,7 +3168,7 @@ async function handleSourcingSearch(request, env) {
         }, { status: [429, 432, 433].includes(status) ? 429 : status === 400 ? 400 : 502 });
       }
       const upstreamResults = tavilyResult.payload && Array.isArray(tavilyResult.payload.results) ? tavilyResult.payload.results : [];
-      tavilyQueryResults.push({ keyword: executedKeywords[index], results: upstreamResults });
+      tavilyQueryResults.push({ queryId: querySpec.id, keyword: querySpec.keyword, lane: querySpec.lane, results: upstreamResults });
     }
     const preparedSources = safeTavilyResults({ queryResults: tavilyQueryResults }, input);
     const sources = preparedSources.sources;
@@ -3096,6 +3203,7 @@ async function handleSourcingSearch(request, env) {
         duplicateHitCount: preparedSources.duplicateHitCount,
         sourceCappedCount: preparedSources.sourceCappedCount,
         keywordMetrics: preparedSources.keywordStats.map((stat) => ({ ...stat, finalAcceptedCandidateCount: 0 })),
+        queryMetrics: preparedSources.queryStats.map((stat) => ({ ...stat, finalAcceptedCandidateCount: 0 })),
         idempotencyRecorded,
         fallbackUrl,
       }, { status: 422 });
@@ -3141,6 +3249,10 @@ async function handleSourcingSearch(request, env) {
       ...stat,
       finalAcceptedCandidateCount: acceptedSources.filter((source) => Array.isArray(source.retrievalKeywords) && source.retrievalKeywords.includes(stat.keyword)).length,
     }));
+    const queryMetrics = preparedSources.queryStats.map((stat) => ({
+      ...stat,
+      finalAcceptedCandidateCount: acceptedSources.filter((source) => Array.isArray(source.retrievalQueryIds) && source.retrievalQueryIds.includes(stat.queryId)).length,
+    }));
     const locationFilteredCount = preparedSources.locationFilteredCount + structured.locationFilteredCount;
     const koreaEvidenceFilteredCount = preparedSources.koreaEvidenceFilteredCount + structured.koreaEvidenceFilteredCount;
     if (!searchCandidates.length) {
@@ -3181,6 +3293,7 @@ async function handleSourcingSearch(request, env) {
         duplicateHitCount: preparedSources.duplicateHitCount,
         sourceCappedCount: preparedSources.sourceCappedCount,
         keywordMetrics,
+        queryMetrics,
         sources: [],
         idempotencyRecorded,
         fallbackUrl,
@@ -3198,13 +3311,13 @@ async function handleSourcingSearch(request, env) {
       responseMode: result.responseMode,
       fallbackUsed: geminiFallbackUsed(result),
       attemptedModels: result.attempts,
-      text: executedKeywords.length + "개 역할 키워드의 공개 프로필을 합치고, 직접 역할근거 " + preparedSources.directRoleProfileCount + "명과 인접 개인정보·운영 근거 " + preparedSources.adjacentEvidenceProfileCount + "명을 포함한 후보 " + searchCandidates.length + "명을 참고점수순으로 정리했습니다." + koreaEvidenceSummary + " AI가 구조화하지 않은 근거 후보도 서버 원문 검증으로 풀에서 배제하지 않았습니다. " + (preparedSources.strictKoreaLocation ? "해외 또는 위치 미확인 결과 " + locationFilteredCount + "건은 제외했습니다. " : "현재 거주지는 필터링하지 않았으며 국적·시민권은 추론하지 않았습니다. ") + "점수는 검토 순서용 신호이며 모든 프로필 사실은 사람이 원문에서 검증해야 합니다.",
+      text: executedKeywords.length + "개 역할 키워드를 역할 정체성·전문 근거의 2개 검색면으로 나눠 공개 프로필을 합치고, 직접 역할근거 " + preparedSources.directRoleProfileCount + "명과 인접 개인정보·운영 근거 " + preparedSources.adjacentEvidenceProfileCount + "명을 포함한 후보 " + searchCandidates.length + "명을 참고점수순으로 정리했습니다." + koreaEvidenceSummary + " AI가 구조화하지 않은 근거 후보도 서버 원문 검증으로 풀에서 배제하지 않았습니다. " + (preparedSources.strictKoreaLocation ? "해외 또는 위치 미확인 결과 " + locationFilteredCount + "건은 제외했습니다. " : "현재 거주지는 필터링하지 않았으며 국적·시민권은 추론하지 않았습니다. ") + "점수는 검토 순서용 신호이며 모든 프로필 사실은 사람이 원문에서 검증해야 합니다.",
       candidates: searchCandidates,
       plannedQueries,
       executedQueries,
       executedKeywords,
       searchPlan,
-      sources: acceptedSources.map((source) => ({ uri: source.url, title: source.title, roleEvidenceLevel: source.roleEvidenceLevel, matchedRoleTerms: source.matchedRoleTerms.slice(), retrievalKeywords: source.retrievalKeywords.slice(), koreaEvidenceLevel: source.koreaEvidenceLevel })),
+      sources: acceptedSources.map((source) => ({ uri: source.url, title: source.title, roleEvidenceLevel: source.roleEvidenceLevel, matchedRoleTerms: source.matchedRoleTerms.slice(), retrievalKeywords: source.retrievalKeywords.slice(), retrievalLanes: source.retrievalLanes.slice(), koreaEvidenceLevel: source.koreaEvidenceLevel })),
       searchAttempts,
       usageCredits,
       locationPolicy,
@@ -3225,6 +3338,7 @@ async function handleSourcingSearch(request, env) {
       duplicateHitCount: preparedSources.duplicateHitCount,
       sourceCappedCount: preparedSources.sourceCappedCount,
       keywordMetrics,
+      queryMetrics,
       retrievedSourceCount: sources.length,
       acceptedResultCount: acceptedSources.length,
       persistAllowed: false,
