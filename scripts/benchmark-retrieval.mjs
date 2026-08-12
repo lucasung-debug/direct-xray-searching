@@ -63,6 +63,9 @@ function coverageRows(metrics, kind) {
     ...(kind === "query" ? {
       keyword: boundedText(metric && metric.keyword, 100),
       lane: boundedText(metric && metric.lane, 80),
+      discoveryLabel: boundedText(metric && metric.discoveryLabel, 180),
+      evidenceFacetId: boundedText(metric && metric.evidenceFacetId, 80) || null,
+      roleKeywordRequired: metric && typeof metric.roleKeywordRequired === "boolean" ? metric.roleKeywordRequired : null,
     } : {}),
     raw: finiteNumber(metric && metric.rawResultCount) || 0,
     unique: finiteNumber(metric && metric.uniqueProfileCount) || 0,
@@ -110,7 +113,7 @@ export function evaluateRetrievalBenchmark(response, referenceInput, options = {
     creditBudget: usageCredits != null && usageCredits <= maximumCredits,
   };
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     status: boundedText(response && response.status, 80) || "unknown",
     reference: {
       total: references.length,

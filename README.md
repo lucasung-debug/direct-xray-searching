@@ -33,10 +33,11 @@ flowchart LR
 
 ## Core behavior
 
-- **Extensible presets**: 현재 CPO 테스트 프리셋을 제공하지만 제품과 평가 구조는 다른 역할 프리셋을 추가할 수 있도록 분리했습니다.
-- **Dual-lane retrieval**: 각 역할 키워드를 역할 정체성과 전문 근거의 두 개 검색면으로 나누고, 같은 credit 안에서 결과를 합칩니다.
+- **Extensible presets**: 현재 CPO 테스트 프리셋은 역할어와 검증된 전문근거 검색면을 함께 소유합니다. 다른 역할은 자기 역할어·평가 신호·전문근거 검색면을 별도 프리셋으로 추가할 수 있으며, 커스텀 검색에는 CPO 지식을 임의로 적용하지 않습니다.
+- **Role + evidence retrieval**: 정확한 역할어 검색 5회와 프리셋 전문근거 검색 5회를 같은 10 credits 안에서 합칩니다. CPO 프리셋은 개인정보 거버넌스, ISMS-P 성과, 클라우드 보안, 사고·규제 대응, Privacy by Design·PIA 책임을 각각 탐색합니다.
 - **Evidence-preserving pool**: Gemini 출력이 후보 풀의 membership gate가 되지 않습니다. 구조화 실패 시 서버가 검색 원문에 결속된 후보를 복구합니다.
-- **Direct vs. adjacent evidence**: 실제 CPO/CISO 직함과 개인정보·보안 운영 경험이 풍부한 인접 후보를 별도로 표시합니다.
+- **Direct vs. adjacent evidence**: 실제 CPO/CISO 직함과 개인정보·보안 책임·성과가 후보 본인에게 결속된 인접 후보를 별도로 표시합니다. 자격증 보유나 관심 주제만으로는 인접 후보가 되지 않습니다.
+- **Truthful discovery labels**: 카드에는 실제로 발견된 `전문근거 · …` 경로와 프로필 원문에서 확인된 역할어를 분리해 표시합니다. 전문근거 검색으로 찾은 사람을 CPO 키워드 검색 결과로 오표기하지 않습니다.
 - **Context-aware role matching**: `CISO-CQ 자격`, 기사 주제, 좋아요·공유 활동을 현재 직함으로 오인하지 않습니다.
 - **Korea professional relevance**: 한국 업무·규제·시장 근거를 보되 현재 거주지는 필터링하지 않고, 이름이나 위치로 국적·시민권을 추론하지 않습니다.
 - **Ephemeral search**: 자동 검색 후보는 서버에 영구 저장하지 않습니다.
@@ -100,6 +101,7 @@ docs/retrieval-quality.md   retrieval experiments and live acceptance criteria
 ## Current validation status
 
 - Worker 계약·인증·공개 사용량 제한·검색 병합·구조화 fallback·안전성 테스트 통과
+- 회귀 fixture에서 직접 CPO/CISO 직함이 없어도 개인정보 거버넌스 책임과 ISMS-P 성과가 결속된 리더를 보존하고, 자격증·관심사만 있는 프로필은 제외
 - 마지막 live 비교에서 검토 카드가 `15명`에서 `49명`으로 확대
 - 검색 근거가 있는 소스의 카드 보존율이 `15/34`에서 `49/49`로 개선
 - 기준 후보 10명의 URL 재현율은 아직 `0/10`; 검색 공급자 색인 차이를 줄이는 retrieval 실험이 남아 있음
