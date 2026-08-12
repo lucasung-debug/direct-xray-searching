@@ -225,37 +225,6 @@ assert.equal(response.status, 403);
 response = await worker.fetch(request("/api/settings/tavily", { headers: { "x-cpo-settings": "1", "oai-authenticated-user-email": testReviewerEmail } }), env);
 assert.equal(response.status, 403, "reviewer cannot inspect BYOK settings");
 
-response = await worker.fetch(request("/workflow"), env);
-assert.equal(response.status, 200);
-const workflow = await response.text();
-assert.match(workflow, /Tavily LinkedIn Search \+ Gemini Flash-Lite 비검색 구조화/);
-assert.match(workflow, /후보 풀 자동 병합·사람의 원문 검증/);
-assert.match(workflow, /공급자 측 query 처리·로그/);
-assert.match(workflow, /Gemini 무료 티어에서는 입력·출력이 Google 제품 개선에 사용되거나 사람의 검토 대상/);
-assert.match(workflow, /Tavily Search API reference/);
-assert.match(workflow, /현재 거주지를 뜻하지 않는다/);
-assert.match(workflow, /현재 한국 위치 hard gate나 Tavily `country` 제한을 사용하지 않는다/);
-assert.match(workflow, /Tavily `country` 제한을 사용하지 않는다/);
-assert.match(workflow, /`확인`, 학교·프로젝트·회사 소재지 같은 맥락은 `단서`, 아무 근거가 없으면 `미확인`/);
-assert.match(workflow, /단서·미확인만으로 후보를 자동 제외하지 않되/);
-assert.match(workflow, /국적·시민권·민족 또는 출신을 추론하거나 점수화하지 않는다/);
-assert.equal(
-  workflow.includes('{"id":"src_user_req_doc","label":"사용자 제공 CPO 요구사항","path":"analysis/user_cpo_requirements.md"},{"id":"src_age_law"'),
-  false,
-  "embedded report manifests must not skip provider source metadata",
-);
-assert.doesNotMatch(workflow, /Google Search Grounding|Gemini Grounded Result|Search Suggestions/);
-
-response = await worker.fetch(request("/api/manifest"), env);
-assert.equal(response.status, 200);
-const manifest = await response.json();
-const manifestSourceIds = new Set(manifest.sources.map((source) => source.id));
-assert.ok(manifestSourceIds.has("src_tavily_doc"));
-assert.ok(manifestSourceIds.has("src_gemini_terms"));
-assert.match(manifest.blocks.find((block) => block.id === "gemini_cta_boundaries").body, /사람의 검토 대상/);
-assert.match(manifest.blocks.find((block) => block.id === "runtime_architecture").body, /전 세계 공개 LinkedIn 결과/);
-assert.match(manifest.blocks.find((block) => block.id === "runtime_architecture").body, /국적·시민권·민족 또는 출신을 추론하거나 점수화하지 않는다/);
-
 const extractBrowserFunction = (source, name) => {
   const start = source.indexOf("function " + name + "(");
   assert.ok(start >= 0, "browser function must exist: " + name);
@@ -1829,12 +1798,6 @@ response = await worker.fetch(request("/api/capabilities", { headers: { "x-cpo-s
 assert.deepEqual(await response.json(), { status: "ok", role: "public", canSearch: true, canManageKeys: false });
 response = await worker.fetch(request("/api/settings/tavily", { headers: { "x-cpo-settings": "1" } }), publicEnv);
 assert.equal(response.status, 403, "anonymous visitors cannot inspect BYOK status or metadata");
-response = await worker.fetch(request("/workflow"), publicEnv);
-assert.equal(response.status, 404, "internal workflow material is not published with the search page");
-response = await worker.fetch(request("/api/manifest"), publicEnv);
-assert.equal(response.status, 404, "internal report APIs are not published with the search page");
-response = await worker.fetch(request("/workflow", { headers: { "oai-authenticated-user-email": testOwnerEmail } }), publicEnv);
-assert.equal(response.status, 200, "the owner retains access to internal workflow material");
 response = await worker.fetch(request("/robots.txt"), publicEnv);
 assert.equal(response.status, 200);
 assert.equal(await response.text(), "User-agent: *\nDisallow: /\n");

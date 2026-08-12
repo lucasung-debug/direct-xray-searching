@@ -1,11 +1,8 @@
 "use strict";
 
-const INDEX_HTML = "";
-const CHART_WIDGET_HTML = "";
+// 리포트 아티팩트 잔재 제거 후 남은 구조 검증용 빈 매니페스트 (회사 데이터 미포함)
 const MANIFEST = { version: 1, charts: [], tables: [], blocks: [], sources: [] };
-const SNAPSHOT = { version: 1, datasets: [] };
 const PACKAGE_INFO = {"artifactId":"e6497af57eaa9be1023561524b451d8a19526273b85e56c919657882a9885f90","artifactRuntime":"datascience-artifact-widget.html","deliveryMode":"site_creator","exportedAt":"2026-08-06T05:58:16.699Z","handoffPluginName":"Data Analytics","hostedEditing":"presentation","hostedReadOnly":true,"controls":{"delete":true,"edit":true,"export":true,"exportHostedLink":false,"refresh":true,"hostedLink":false,"html":true,"pdf":true,"document":true,"slides":true}};
-const SOURCE_TEXT = new Map();
 const ARTIFACT_ID = PACKAGE_INFO.artifactId;
 const PRESENTATION_EDITING_ENABLED = true;
 const EDITOR_EMAIL_HASH = "c6aaddba27c7836406ea807aaaec2377084e5587da4887eedc628c00c30e55ab";
@@ -14,53 +11,10 @@ const PRESENTATION_SCHEMA_SQL = "CREATE TABLE IF NOT EXISTS data_analytics_prese
 const MAX_PRESENTATION_BYTES = 250000;
 const MAX_PRESENTATION_TEXT = 20000;
 
-const REPORT_PROVIDER_SOURCES = Object.freeze([
-  { id: "src_tavily_doc", label: "Tavily LinkedIn 검색 적용 판단", href: "https://docs.tavily.com/examples/quick-tutorials/linkedin-profile-search" },
-  { id: "src_gemini_pricing", label: "Google AI for Developers: Gemini API pricing", href: "https://ai.google.dev/gemini-api/docs/pricing" },
-  { id: "src_tavily_search", label: "Tavily Search API reference", href: "https://docs.tavily.com/documentation/api-reference/endpoint/search" },
-  { id: "src_tavily_pricing", label: "Tavily API credits and pricing", href: "https://docs.tavily.com/documentation/api-credits" },
-  { id: "src_tavily_privacy", label: "Tavily Privacy Policy", href: "https://www.tavily.com/privacy" },
-  { id: "src_tavily_terms", label: "Tavily Platform Terms", href: "https://www.tavily.com/terms" },
-  { id: "src_gemini_terms", label: "Google: Gemini API Additional Terms", href: "https://ai.google.dev/gemini-api/terms" },
-]);
 const GEMINI_FREE_TIER_DISCLOSURE = "Gemini 무료 티어에서는 입력·출력이 Google 제품 개선에 사용되거나 사람의 검토 대상이 될 수 있으므로 실제 후보의 비공개 정보·연락처·ATS 데이터는 입력하지 않는다.";
-const REPORT_DISCLOSURE_ANCHOR = "앱 DB에는 결과를 저장하지 않지만 무료 test bed의 공급자 측 query 처리·로그와 DPA/ZDR은 별도 확인이 필요하다.";
 const KOREA_TALENT_POLICY_DISCLOSURE = "CPO 프리셋의 대한민국 조건은 후보의 현재 거주지를 뜻하지 않는다. 검색은 전 세계 공개 LinkedIn 결과를 대상으로 하며 현재 한국 위치 hard gate나 Tavily `country` 제한을 사용하지 않는다. 공개 프로필의 한국어 개인정보·정보보호 업무, 한국 시장 책임, 개인정보보호법(PIPA), ISMS-P처럼 직무와 연결된 근거는 `확인`, 학교·프로젝트·회사 소재지 같은 맥락은 `단서`, 아무 근거가 없으면 `미확인`으로 표시한다. 단서·미확인만으로 후보를 자동 제외하지 않되 점수와 Coverage를 보수적으로 제한한다. 이름·언어·거주지로 국적·시민권·민족 또는 출신을 추론하거나 점수화하지 않는다. 국적이나 근무 자격 확인이 실제로 필요하면 후보 본인 확인과 승인된 HR 절차의 `VERIFY` 항목으로 분리한다.";
-const REPORT_LOCATION_ANCHOR = "검색 CTA는 예약 작업이 아니며, 호출 중 중복 클릭을 막고 오류·쿼터 초과 시 수동 Google X-ray 링크를 제공한다.";
-const REPORT_SOURCE_ANCHOR = '{"id":"src_user_req_doc","label":"사용자 제공 CPO 요구사항","path":"analysis/user_cpo_requirements.md"},';
-const REPORT_AGE_SOURCE_PREFIX = '{"id":"src_age_law"';
 
-function currentManifest() {
-  if (!Array.isArray(MANIFEST.sources)) MANIFEST.sources = [];
-  const knownSourceIds = new Set(MANIFEST.sources.map((source) => source && source.id));
-  for (const source of REPORT_PROVIDER_SOURCES) {
-    if (!knownSourceIds.has(source.id)) MANIFEST.sources.push({ ...source });
-  }
-  const boundaryBlock = Array.isArray(MANIFEST.blocks)
-    ? MANIFEST.blocks.find((block) => block && block.id === "gemini_cta_boundaries")
-    : null;
-  if (boundaryBlock && !String(boundaryBlock.body || "").includes(GEMINI_FREE_TIER_DISCLOSURE)) {
-    boundaryBlock.body = String(boundaryBlock.body || "").trim() + "\n\n" + GEMINI_FREE_TIER_DISCLOSURE;
-  }
-  const runtimeBlock = Array.isArray(MANIFEST.blocks)
-    ? MANIFEST.blocks.find((block) => block && block.id === "runtime_architecture")
-    : null;
-  if (runtimeBlock && !String(runtimeBlock.body || "").includes(KOREA_TALENT_POLICY_DISCLOSURE)) {
-    runtimeBlock.body = String(runtimeBlock.body || "").trim() + "\n\n" + KOREA_TALENT_POLICY_DISCLOSURE;
-  }
-  return MANIFEST;
-}
 
-function currentReportHtml(source) {
-  const providerSourceJson = REPORT_PROVIDER_SOURCES.map((item) => JSON.stringify(item)).join(",") + ",";
-  return String(source)
-    .replaceAll(REPORT_DISCLOSURE_ANCHOR, REPORT_DISCLOSURE_ANCHOR + " " + GEMINI_FREE_TIER_DISCLOSURE)
-    .replaceAll(REPORT_LOCATION_ANCHOR, REPORT_LOCATION_ANCHOR + " " + KOREA_TALENT_POLICY_DISCLOSURE)
-    .replaceAll(
-      REPORT_SOURCE_ANCHOR + REPORT_AGE_SOURCE_PREFIX,
-      REPORT_SOURCE_ANCHOR + providerSourceJson + REPORT_AGE_SOURCE_PREFIX,
-    );
-}
 
 
 function isPlainObject(value) {
@@ -506,15 +460,6 @@ function textResponse(body, init = {}) {
   });
 }
 
-function sourceTextFor(url) {
-  const key =
-    url.searchParams.get("path") ||
-    url.searchParams.get("id") ||
-    url.searchParams.get("source") ||
-    url.searchParams.get("sourceId") ||
-    "";
-  return SOURCE_TEXT.get(key) || null;
-}
 
 const PRODUCT_NAME = "Direct X-ray Searching";
 const DIRECT_XRAY_PRESETS = Object.freeze({
@@ -3842,24 +3787,11 @@ export default {
     if (url.pathname === "/api/settings/tavily/test") return handleTavilyKeyTest(request, env);
     if (url.pathname === "/api/capabilities") return handleCapabilities(request, env);
     if (url.pathname === "/api/search") return handleSourcingSearch(request, env);
-    if (url.pathname === "/api/manifest") return jsonResponse(currentManifest());
-    if (url.pathname === "/api/snapshot") return jsonResponse(SNAPSHOT);
     if (url.pathname === "/api/package") return jsonResponse(PACKAGE_INFO);
     if (url.pathname === "/api/presentation") {
       if (request.method === "GET") return getPresentation(request, env);
       if (request.method === "PUT") return putPresentation(request, env);
       return jsonResponse({ error: "Method not allowed." }, { status: 405, headers: { allow: "GET, PUT" } });
-    }
-    if (url.pathname === "/api/inline-chart-widget") {
-      return textResponse(currentReportHtml(CHART_WIDGET_HTML), { contentType: "text/html; charset=utf-8" });
-    }
-    if (url.pathname === "/api/source-file" || url.pathname === "/api/source") {
-      const text = sourceTextFor(url);
-      if (text != null) return textResponse(text);
-      return textResponse("Source text was not included in this hosted artifact.", { status: 404 });
-    }
-    if (url.pathname === "/workflow" || url.pathname === "/plan" || url.pathname === "/report") {
-      return textResponse(currentReportHtml(INDEX_HTML), { contentType: "text/html; charset=utf-8" });
     }
     if (url.pathname === "/" || url.pathname === "/index.html") {
       return textResponse(SOURCING_HTML, { contentType: "text/html; charset=utf-8" });
