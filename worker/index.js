@@ -1989,10 +1989,58 @@ function sourceRoleFamilyTerms(title, content, input) {
   return roleFamilyTermsFor(input).filter((term) => sourceContainsCandidateRoleKeyword(title, content, term));
 }
 
-const NON_CANDIDATE_ROLE_CONTEXT_PATTERN = /(?:open\s+position|job\s+(?:opening|posting)|we(?:'re|\s+are)\s+hiring|hiring\s+for|recruiting\s+for|채용|모집|구인|지원\s*바랍니다|올린\s*사람|추천한\s*사람|공유함|퍼옴|reposted|shared\s+by|recommended\s+by)/i;
+const NON_CANDIDATE_ROLE_CONTEXT_PATTERN = /(?:open\s+position|job\s+(?:opening|posting)|we(?:'re|\s+are)\s+hiring|hiring\s+for|recruiting\s+for|채용|모집|구인|지원\s*바랍니다|올린\s*사람|추천한\s*사람|좋아요\s*표시함|좋아합니다|공유함|공유했습니다|퍼옴|댓글을\s*남겼습니다|게시했습니다|reposted|shared\s+(?:by|this)|recommended\s+by|liked\s+by|likes\s+this|commented\s+on\s+this|posted\s+this)/i;
 const CPO_NON_PRIVACY_ROLE_PATTERN = /(?:chief\s+(?:product|people|procurement|process|performance|partnerships?|portfolio)\s+officer|(?:product|people|procurement|process|performance|partnerships?|portfolio)\s+(?:chief|cpo)|\bCPO\b\s*[-–—|·,:/]?\s*(?:product|people|procurement|process|performance|partnerships?|portfolio))/i;
 const CPO_PRIVACY_CONTEXT_PATTERN = /(?:chief\s+privacy\s+officer|privacy|data\s+protection|personal\s+information|개인정보|정보\s*(?:보호|보안)|\bPIPA\b|\bISMS(?:-P)?\b|\bCISO\b)/i;
 const CPO_ASSOCIATION_CONTEXT_PATTERN = /(?:CPO\s*(?:forum|council|association)|CPO포럼|개인정보보호책임자협의회)/i;
+const ROLE_NON_IDENTITY_PREFIX_PATTERN = /(?:certif(?:ied|ication)?|certificate|credential|license|course|forum|council|association|article|publication|seminar|training|discussion|talk|reads?|discuss(?:es|ed|ing)?|post(?:s|ed)?(?:\s+about)?|자격|수료|발행|심사원|인증심사|포럼|협의회|교육|강의|세미나|기사|논문|읽은\s*글|관련\s*글)\s*(?:for|in|of|about|on|as|:|·|-)?\s*$/i;
+const ROLE_NON_IDENTITY_SUFFIX_PATTERN = /^\s*(?:[-–—/:]\s*(?:[a-z]{1,12}\s*)?)?(?:certif(?:ied|ication)?|certificate|credential|license|course|forum|council|association|article|publication|seminar|training|discussion|자격|수료|발행|심사원|인증심사|포럼|협의회|교육|강의|세미나|기사|논문)/i;
+const ROLE_TOPIC_SUFFIX_PATTERN = /^\s*(?:는|란|이란|의\s+역할|시대|역할|관심사|concerns?|role|forum|council|association|should|must|needs?\s+to)/i;
+
+function roleMentionPattern(keyword) {
+  const normalizedKeyword = normalizedEvidenceText(safeSearchKeyword(keyword));
+  const aliases = {
+    cpo: "(?:\\bCPO\\b|\\bchief\\s+privacy\\s+officer\\b)",
+    ciso: "(?:\\bCISO\\b|\\bchief\\s+information\\s+security\\s+officer\\b)",
+    dpo: "(?:\\bDPO\\b|\\bdata\\s+protection\\s+officer\\b)",
+  };
+  if (Object.hasOwn(aliases, normalizedKeyword)) return new RegExp(aliases[normalizedKeyword], "gi");
+  const raw = safeSearchKeyword(keyword);
+  if (!raw) return null;
+  const escaped = raw.split("").map((character) => character.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s*");
+  return new RegExp(escaped, "gi");
+}
+
+function roleMentionIsOnlyNonIdentity(text, keyword) {
+  const pattern = roleMentionPattern(keyword);
+  if (!pattern) return false;
+  const mentions = [];
+  let match;
+  while ((match = pattern.exec(text))) {
+    mentions.push({ start: match.index, end: match.index + match[0].length });
+    if (!match[0].length) pattern.lastIndex += 1;
+  }
+  return Boolean(mentions.length) && mentions.every((mention) => {
+    const before = text.slice(Math.max(0, mention.start - 100), mention.start);
+    const after = text.slice(mention.end, Math.min(text.length, mention.end + 120));
+    return ROLE_NON_IDENTITY_PREFIX_PATTERN.test(before)
+      || ROLE_NON_IDENTITY_SUFFIX_PATTERN.test(after)
+      || ROLE_TOPIC_SUFFIX_PATTERN.test(after);
+  });
+}
+
+function candidateRoleMentionBound(segment, index, keyword, subjectHint) {
+  const text = compactText(segment, 900);
+  if (!text || NON_CANDIDATE_ROLE_CONTEXT_PATTERN.test(text) || roleMentionIsOnlyNonIdentity(text, keyword)) return false;
+  const normalized = normalizedEvidenceText(text);
+  const subject = normalizedEvidenceText(subjectHint);
+  if (subject && normalized.includes(subject)) return true;
+  if (/(?:serves?\s+as|works?\s+as|experience\s+as|role\s+as|appointed\s+as|currently|formerly|current\s+role|leads?|heads?|oversees?|responsible\s+for|career|\(?현재\)?|(?:^|\s)현\s|(?:^|\s)전\s|경력|역할|수행|총괄|담당|책임자|실장|센터장|부문장)/i.test(text)) return true;
+  if (index >= 3 || text.length > 320) return false;
+  const normalizedKeyword = normalizedEvidenceText(safeSearchKeyword(keyword));
+  const keywordIndex = normalized.indexOf(normalizedKeyword);
+  return keywordIndex >= 0 && keywordIndex <= 24;
+}
 
 function sourceContainsCandidateRoleKeyword(title, content, keyword) {
   const normalizedKeyword = normalizedEvidenceText(safeSearchKeyword(keyword));
@@ -2000,11 +2048,13 @@ function sourceContainsCandidateRoleKeyword(title, content, keyword) {
     const titleText = String(title || "");
     const combined = titleText + " " + String(content || "");
     if (CPO_NON_PRIVACY_ROLE_PATTERN.test(titleText)) return false;
-    if (/chief\s+privacy\s+officer/i.test(titleText) && !NON_CANDIDATE_ROLE_CONTEXT_PATTERN.test(titleText)) return true;
+    if (/chief\s+privacy\s+officer/i.test(titleText)
+      && candidateRoleMentionBound(titleText, 0, "CPO", sourceSubjectHint(titleText))) return true;
     if (sourceContainsSpecificSearchKeyword(titleText, keyword)
       && !NON_CANDIDATE_ROLE_CONTEXT_PATTERN.test(titleText)
       && !CPO_ASSOCIATION_CONTEXT_PATTERN.test(titleText)
-      && CPO_PRIVACY_CONTEXT_PATTERN.test(combined)) return true;
+      && CPO_PRIVACY_CONTEXT_PATTERN.test(combined)
+      && candidateRoleMentionBound(titleText, 0, keyword, sourceSubjectHint(titleText))) return true;
     const cpoSegments = String(content || "").split(/(?:\n+|\s*\[\.\.\.\]\s*|(?<=[.!?])\s+)/).map((segment) => compactText(segment, 900)).filter(Boolean);
     return cpoSegments.some((segment, index) => {
       if (!sourceContainsSpecificSearchKeyword(segment, keyword)
@@ -2012,15 +2062,16 @@ function sourceContainsCandidateRoleKeyword(title, content, keyword) {
         || CPO_NON_PRIVACY_ROLE_PATTERN.test(segment)
         || CPO_ASSOCIATION_CONTEXT_PATTERN.test(segment)
         || !CPO_PRIVACY_CONTEXT_PATTERN.test(segment)) return false;
-      return index < 3 || /(?:serves?\s+as|works?\s+as|experience\s+as|role\s+as|leads?|heads?|oversees?|responsible\s+for|career|경력|역할|수행|총괄|담당|책임자)/i.test(segment);
+      return candidateRoleMentionBound(segment, index, keyword, sourceSubjectHint(title));
     });
   }
-  if (sourceContainsSpecificSearchKeyword(title, keyword) && !NON_CANDIDATE_ROLE_CONTEXT_PATTERN.test(title)) return true;
+  if (sourceContainsSpecificSearchKeyword(title, keyword)
+    && candidateRoleMentionBound(title, 0, keyword, sourceSubjectHint(title))) return true;
   if (!sourceContainsSpecificSearchKeyword(content, keyword)) return false;
   const segments = String(content || "").split(/(?:\n+|\s*\[\.\.\.\]\s*|(?<=[.!?])\s+)/).map((segment) => compactText(segment, 900)).filter(Boolean);
   return segments.some((segment, index) => {
     if (!sourceContainsSpecificSearchKeyword(segment, keyword) || NON_CANDIDATE_ROLE_CONTEXT_PATTERN.test(segment)) return false;
-    return index < 3 || /(?:serves?\s+as|works?\s+as|experience\s+as|role\s+as|leads?|heads?|oversees?|responsible\s+for|career|경력|역할|수행|총괄|담당|책임자|실장)/i.test(segment);
+    return candidateRoleMentionBound(segment, index, keyword, sourceSubjectHint(title));
   });
 }
 
