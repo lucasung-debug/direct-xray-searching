@@ -34,6 +34,7 @@ flowchart LR
 ## Core behavior
 
 - **Extensible presets**: 현재 CPO 테스트 프리셋을 제공하지만 제품과 평가 구조는 다른 역할 프리셋을 추가할 수 있도록 분리했습니다.
+- **Dual-lane retrieval**: 각 역할 키워드를 역할 정체성과 전문 근거의 두 개 검색면으로 나누고, 같은 credit 안에서 결과를 합칩니다.
 - **Evidence-preserving pool**: Gemini 출력이 후보 풀의 membership gate가 되지 않습니다. 구조화 실패 시 서버가 검색 원문에 결속된 후보를 복구합니다.
 - **Direct vs. adjacent evidence**: 실제 CPO/CISO 직함과 개인정보·보안 운영 경험이 풍부한 인접 후보를 별도로 표시합니다.
 - **Context-aware role matching**: `CISO-CQ 자격`, 기사 주제, 좋아요·공유 활동을 현재 직함으로 오인하지 않습니다.
@@ -92,6 +93,7 @@ scripts/test-worker.mjs     end-to-end contract and safety tests
 scripts/build.mjs           deployable artifact build
 scripts/validate-artifact.mjs
 dist/server/index.js        validated Sites deployment artifact
+docs/retrieval-quality.md   retrieval experiments and live acceptance criteria
 ```
 
 ## Current validation status
@@ -102,3 +104,5 @@ dist/server/index.js        validated Sites deployment artifact
 - 기준 후보 10명의 URL 재현율은 아직 `0/10`; 검색 공급자 색인 차이를 줄이는 retrieval 실험이 남아 있음
 
 후보 수가 늘어난 것을 검색 정확도 향상으로 단정하지 않습니다. 다음 평가는 기준 후보 재현율, 신규 유효 후보 비율, 역할 오인율을 함께 비교해야 합니다.
+
+실험 설계와 판정 기준은 [retrieval quality log](docs/retrieval-quality.md)에 기록합니다.
