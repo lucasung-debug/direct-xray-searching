@@ -65,6 +65,7 @@ function coverageRows(metrics, kind) {
       lane: boundedText(metric && metric.lane, 80),
       discoveryLabel: boundedText(metric && metric.discoveryLabel, 180),
       evidenceFacetId: boundedText(metric && metric.evidenceFacetId, 80) || null,
+      evidenceGate: boundedText(metric && metric.evidenceGate, 80) || null,
       roleKeywordRequired: metric && typeof metric.roleKeywordRequired === "boolean" ? metric.roleKeywordRequired : null,
     } : {}),
     raw: finiteNumber(metric && metric.rawResultCount) || 0,
@@ -72,6 +73,7 @@ function coverageRows(metrics, kind) {
     roleBound: finiteNumber(metric && metric.roleMatchedProfileCount) || 0,
     directRole: finiteNumber(metric && metric.directRoleProfileCount) || 0,
     adjacentRole: finiteNumber(metric && metric.adjacentEvidenceProfileCount) || 0,
+    expandedEvidence: finiteNumber(metric && metric.expandedEvidenceProfileCount) || 0,
     final: finiteNumber(metric && metric.finalAcceptedCandidateCount) || 0,
   }));
 }
@@ -113,7 +115,7 @@ export function evaluateRetrievalBenchmark(response, referenceInput, options = {
     creditBudget: usageCredits != null && usageCredits <= maximumCredits,
   };
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     status: boundedText(response && response.status, 80) || "unknown",
     reference: {
       total: references.length,
@@ -136,6 +138,7 @@ export function evaluateRetrievalBenchmark(response, referenceInput, options = {
     evidence: {
       directRoleProfiles: finiteNumber(response && response.directRoleProfileCount),
       adjacentRoleProfiles: finiteNumber(response && response.adjacentEvidenceProfileCount),
+      expandedEvidenceProfiles: finiteNumber(response && response.expandedEvidenceProfileCount),
       koreaStrongProfiles: finiteNumber(response && response.koreaStrongProfileCount),
       koreaWeakProfiles: finiteNumber(response && response.koreaWeakProfileCount),
       koreaUnverifiedProfiles: finiteNumber(response && response.koreaUnverifiedProfileCount),
