@@ -90,6 +90,7 @@ npm run preview
 worker/index.js             Worker API and embedded web UI
 db/schema.ts                D1 schema
 scripts/test-worker.mjs     end-to-end contract and safety tests
+scripts/benchmark-retrieval.mjs private-reference recall and pool-preservation benchmark
 scripts/build.mjs           deployable artifact build
 scripts/validate-artifact.mjs
 dist/server/index.js        validated Sites deployment artifact

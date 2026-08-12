@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { webcrypto } from "node:crypto";
 import vm from "node:vm";
+import { compareRetrievalBenchmarks, evaluateRetrievalBenchmark, normalizeLinkedInProfileKey } from "./benchmark-retrieval.mjs";
 
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
 if (!globalThis.btoa) globalThis.btoa = (value) => Buffer.from(value, "binary").toString("base64");
@@ -1591,4 +1592,43 @@ assert.equal(publicSiteLimit.dailyCreditLimit, 10);
 assert.equal(tavilySearchCalls, callsBeforePublicSiteLimit, "site-wide public limits block before provider calls");
 assert.ok(Array.from(publicDB.actorUsage.values()).some((row) => row.reserved_credits === 0), "a site-wide rejection rolls back the new visitor reservation");
 
-console.log("Worker dual-provider BYOK, dual-lane basic Tavily union, source-bound final Gemini evaluation, owner/reviewer/public auth, public rate limits, internal artifact isolation, empty pool, and safety contracts passed");
+assert.equal(normalizeLinkedInProfileKey("https://kr.linkedin.com/in/Example-Profile/en?trk=public"), "/in/example-profile");
+assert.equal(normalizeLinkedInProfileKey("https://www.linkedin.com/company/not-a-person"), "");
+const benchmarkReference = [
+  "https://kr.linkedin.com/in/reference-one",
+  "https://www.linkedin.com/in/reference-two/en",
+  "https://linkedin.com/in/reference-three",
+];
+const benchmarkBaseline = evaluateRetrievalBenchmark({
+  status: "ok",
+  usageCredits: 10,
+  candidates: [{ url: "https://www.linkedin.com/in/reference-one" }],
+  sources: [{ uri: "https://www.linkedin.com/in/reference-one" }],
+  queryMetrics: [{ queryId: "cpo:role_identity", keyword: "CPO", lane: "role_identity", rawResultCount: 10, uniqueProfileCount: 8, roleMatchedProfileCount: 4, finalAcceptedCandidateCount: 1 }],
+}, benchmarkReference);
+const benchmarkCurrent = evaluateRetrievalBenchmark({
+  status: "ok",
+  usageCredits: 10,
+  latencyMs: 1234,
+  candidates: [
+    { url: "https://www.linkedin.com/in/reference-one" },
+    { url: "https://kr.linkedin.com/in/reference-two/en?trk=public_profile" },
+  ],
+  sources: [
+    { uri: "https://linkedin.com/in/reference-one/" },
+    { uri: "https://www.linkedin.com/in/reference-two" },
+  ],
+  queryMetrics: [
+    { queryId: "cpo:role_identity", keyword: "CPO", lane: "role_identity", rawResultCount: 10, uniqueProfileCount: 8, roleMatchedProfileCount: 4, finalAcceptedCandidateCount: 1 },
+    { queryId: "cpo:professional_evidence", keyword: "CPO", lane: "professional_evidence", rawResultCount: 10, uniqueProfileCount: 9, roleMatchedProfileCount: 5, finalAcceptedCandidateCount: 1 },
+  ],
+  keywordMetrics: [{ keyword: "CPO", rawResultCount: 20, uniqueProfileCount: 17, roleMatchedProfileCount: 9, finalAcceptedCandidateCount: 2 }],
+}, benchmarkReference);
+assert.equal(benchmarkCurrent.reference.matched, 2);
+assert.equal(benchmarkCurrent.reference.recallAtReviewPool, 2 / 3);
+assert.equal(benchmarkCurrent.pool.sourceToCardPreservationRate, 1);
+assert.equal(benchmarkCurrent.acceptance.passed, true);
+assert.deepEqual(compareRetrievalBenchmarks(benchmarkCurrent, benchmarkBaseline).recoveredReferenceIds, ["R02"]);
+assert.doesNotMatch(JSON.stringify(benchmarkCurrent), /linkedin\.com|reference-one|reference-two/i, "benchmark output never prints candidate URLs or slugs");
+
+console.log("Worker dual-provider BYOK, dual-lane basic Tavily union, source-bound final Gemini evaluation, private-reference retrieval benchmarking, owner/reviewer/public auth, public rate limits, internal artifact isolation, empty pool, and safety contracts passed");
