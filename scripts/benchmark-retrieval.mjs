@@ -57,6 +57,41 @@ function urlSetFrom(records, field) {
   return { keys, unique: new Set(keys) };
 }
 
+function recordMapByProfileKey(records, field) {
+  const map = new Map();
+  for (const record of Array.isArray(records) ? records : []) {
+    const key = normalizeLinkedInProfileKey(record && record[field]);
+    if (key && !map.has(key)) map.set(key, record);
+  }
+  return map;
+}
+
+function boundedUniqueTexts(values, limit, maximum) {
+  const unique = [];
+  for (const value of Array.isArray(values) ? values : []) {
+    const text = boundedText(value, limit);
+    if (text && !unique.includes(text)) unique.push(text);
+    if (unique.length >= maximum) break;
+  }
+  return unique;
+}
+
+function referenceDiagnostic(reference, candidate, source) {
+  const hit = Boolean(candidate);
+  return {
+    id: reference.id,
+    hit,
+    roleEvidenceLevel: hit ? boundedText(candidate.roleEvidenceLevel || source && source.roleEvidenceLevel, 40) || null : null,
+    evidenceBasis: hit ? boundedText(candidate.evidenceBasis || source && source.evidenceBasis, 80) || null : null,
+    coverage: hit ? boundedText(candidate.coverage, 40) || null : null,
+    score: hit ? finiteNumber(candidate.score) : null,
+    koreaEvidenceLevel: hit ? boundedText(candidate.koreaEvidenceLevel || source && source.koreaEvidenceLevel, 40) || null : null,
+    retrievalLanes: hit ? boundedUniqueTexts(source && source.retrievalLanes, 80, 4) : [],
+    retrievalPaths: hit ? boundedUniqueTexts(candidate.retrievalPaths || source && source.retrievalPaths, 180, 8) : [],
+    matchedRoleTerms: hit ? boundedUniqueTexts(candidate.matchedKeywords || source && source.matchedRoleTerms, 100, 8) : [],
+  };
+}
+
 function coverageRows(metrics, kind) {
   return (Array.isArray(metrics) ? metrics : []).map((metric, index) => ({
     id: boundedText(kind === "query" ? metric && metric.queryId : metric && metric.keyword, 180) || kind + "-" + String(index + 1),
@@ -98,9 +133,15 @@ export function evaluateRetrievalBenchmark(response, referenceInput, options = {
   const references = normalizeReferenceRecords(referenceInput);
   const sources = urlSetFrom(response && response.sources, "uri");
   const candidates = urlSetFrom(response && response.candidates, "url");
+  const sourcesByProfile = recordMapByProfileKey(response && response.sources, "uri");
+  const candidatesByProfile = recordMapByProfileKey(response && response.candidates, "url");
   const preservedSourceCount = Array.from(sources.unique).filter((key) => candidates.unique.has(key)).length;
   const sourceToCardPreservationRate = sources.unique.size ? preservedSourceCount / sources.unique.size : null;
-  const referenceResults = references.map((reference) => ({ id: reference.id, hit: candidates.unique.has(reference.key) }));
+  const referenceResults = references.map((reference) => referenceDiagnostic(
+    reference,
+    candidatesByProfile.get(reference.key),
+    sourcesByProfile.get(reference.key),
+  ));
   const matchedReferenceCount = referenceResults.filter((reference) => reference.hit).length;
   const queryCoverage = coverageRows(response && response.queryMetrics, "query");
   const keywordCoverage = coverageRows(response && response.keywordMetrics, "keyword");
@@ -115,7 +156,7 @@ export function evaluateRetrievalBenchmark(response, referenceInput, options = {
     creditBudget: usageCredits != null && usageCredits <= maximumCredits,
   };
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     status: boundedText(response && response.status, 80) || "unknown",
     reference: {
       total: references.length,
