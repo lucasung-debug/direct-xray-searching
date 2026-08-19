@@ -62,6 +62,8 @@ CPO 프리셋의 “한국 관련 인재”는 **한국에 현재 거주하는 �
 
 초기 검색은 Tavily `basic` 검색 10회, 최대 10 credits를 사용합니다. 결과는 URL 기준으로 중복 제거됩니다.
 
+자동 검색과 별도로 `Google ↗`, `Bing ↗` 버튼에서 같은 안전 검사를 통과한 첫 번째 역할 키워드의 LinkedIn X-ray 검색을 바로 열 수 있습니다. 두 엔진은 공개 웹 색인이 서로 다르므로 결과 비교와 누락 보완에 사용합니다. Bing 검색식은 Bing이 긴 질의의 처음 10개 용어만 사용할 수 있다는 제약을 고려해 Google 검색식보다 짧은 직무 문맥으로 생성합니다. Edge는 브라우저이므로 `Bing ↗` 버튼이 Edge 기본 검색과 같은 Bing 결과를 엽니다.
+
 ### 4. 후보 카드에서 “왜 볼 사람인지” 확인합니다
 
 점수만 보지 말고 다음 세 가지를 함께 보세요.
@@ -194,6 +196,7 @@ Gemini가 모든 검색 결과를 완벽하게 JSON으로 구조화한다는 보
 - 공개 검색엔진에 색인된 LinkedIn 개인 프로필(`/in/`)만 대상으로 합니다.
 - LinkedIn 로그인을 대신하거나, 비공개 프로필을 열거나, LinkedIn을 직접 자동 크롤링하지 않습니다.
 - 검색엔진에 노출되지 않은 프로필은 찾을 수 없습니다.
+- Google과 Bing의 색인 범위·순위가 달라 같은 조건에서도 결과가 다를 수 있습니다.
 - 연락처와 민감정보 패턴은 후보 텍스트에서 제거합니다.
 - 검색 원문에 포함된 prompt-injection 문장은 Gemini 전달 전에 차단합니다.
 - 연령, 출생연도, 졸업연도는 검색·추론·점수·필터에 사용하지 않습니다.
@@ -276,6 +279,7 @@ Tavily raw 100
 - JavaScript ESM Worker
 - Tavily Search API
 - Gemini structured output와 검증된 서버 fallback
+- Google·Bing 공개 LinkedIn X-ray fallback
 - 암호화된 BYOK 설정과 사용량 통제를 위한 D1 호환 저장소
 - OpenAI Sites 배포 아티팩트
 - 별도 프레임워크 의존성을 최소화한 HTML·CSS·브라우저 JavaScript UI

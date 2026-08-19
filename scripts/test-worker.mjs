@@ -135,6 +135,10 @@ assert.match(home, /<strong>Direct X-ray Searching<\/strong>/);
 assert.match(home, /class="btn hidden" id="workflow-link"/);
 assert.match(home, /\.brand \.brand-mark\{[^}]*margin-top:0[^}]*color:#fff[^}]*display:grid/, "the compact mobile brand mark keeps centered high-contrast initials");
 assert.match(home, /키워드별 후보 찾기/);
+assert.match(home, /id="google-xray-button"[^>]*>Google ↗<\/button>/);
+assert.match(home, /id="bing-xray-button"[^>]*>Bing ↗<\/button>/);
+assert.match(home, /id="fallback-links"/);
+assert.match(home, /id="bing-fallback-link"/);
 assert.match(home, /AI 점수는 정렬하고/);
 assert.match(home, /사람은 가능성을 판단합니다/);
 assert.match(home, /낮은 점수 후보도 풀에 남기고/);
@@ -199,7 +203,9 @@ assert.match(home, /var preferred=itemScore>=existingScore\?item:existing/, "aut
 assert.match(home, /function searchSignature\(\)/);
 assert.match(home, /return \["job","location","keywords","required","preferred","additional"\]/, "the browser duplicate guard ignores presentation-only preset labels");
 assert.match(home, /round:requestedMode==="more"\?1:0/, "the deep CTA sends the distinct server-side retrieval round");
-assert.match(home, /function searchInputIssue\(payload\)/, "the direct search and Google fallback share a client input guard");
+assert.match(home, /function searchInputIssue\(payload\)/, "the direct search and external X-ray fallbacks share a client input guard");
+assert.match(home, /function externalXrayUrls\(payload\)/, "the browser generates provider-specific Google and Bing X-ray searches");
+assert.match(home, /www\.bing\.com\/search\?q=/);
 assert.match(home, /mode!=="more"&&signature&&signature===lastSearchSignature/, "the browser blocks repeated initial searches but permits one distinct deep round");
 assert.match(home, /mode==="more"&&searchRound>=1/, "the browser limits the optional advanced round to one run per condition set");
 assert.match(home, /masked-output/, "share masking hides the compact search result summary and message");
@@ -239,6 +245,8 @@ assert.match(workflow, /Tavily `country` 제한을 사용하지 않는다/);
 assert.match(workflow, /`확인`, 학교·프로젝트·회사 소재지 같은 맥락은 `단서`, 아무 근거가 없으면 `미확인`/);
 assert.match(workflow, /단서·미확인만으로 후보를 자동 제외하지 않되/);
 assert.match(workflow, /국적·시민권·민족 또는 출신을 추론하거나 점수화하지 않는다/);
+assert.match(workflow, /수동 Google·Bing X-ray 링크를 제공/);
+assert.match(workflow, /Edge에서는 기본 검색엔진이 Bing일 때 동일한 Bing 검색 결과/);
 assert.equal(
   workflow.includes('{"id":"src_user_req_doc","label":"사용자 제공 CPO 요구사항","path":"analysis/user_cpo_requirements.md"},{"id":"src_age_law"'),
   false,
@@ -252,9 +260,11 @@ const manifest = await response.json();
 const manifestSourceIds = new Set(manifest.sources.map((source) => source.id));
 assert.ok(manifestSourceIds.has("src_tavily_doc"));
 assert.ok(manifestSourceIds.has("src_gemini_terms"));
+assert.ok(manifestSourceIds.has("src_bing_advanced_search"));
 assert.match(manifest.blocks.find((block) => block.id === "gemini_cta_boundaries").body, /사람의 검토 대상/);
 assert.match(manifest.blocks.find((block) => block.id === "runtime_architecture").body, /전 세계 공개 LinkedIn 결과/);
 assert.match(manifest.blocks.find((block) => block.id === "runtime_architecture").body, /국적·시민권·민족 또는 출신을 추론하거나 점수화하지 않는다/);
+assert.match(manifest.blocks.find((block) => block.id === "runtime_architecture").body, /Google·Bing X-ray 링크를 제공/);
 
 const extractBrowserFunction = (source, name) => {
   const start = source.indexOf("function " + name + "(");
@@ -411,16 +421,18 @@ vm.runInContext([
   extractBrowserFunction(home, "searchInputIssue"),
   extractBrowserFunction(home, "showSearchInputIssue"),
   extractBrowserFunction(home, "formPayload"),
+  extractBrowserFunction(home, "externalXrayUrls"),
   extractBrowserFunction(home, "openFallback"),
-  "openFallback();protectedOpenCount=openCalls.length;",
-  "byId('keywords').value='45 yo';openFallback();ageYoOpenCount=openCalls.length;",
-  "byId('keywords').value='under 45';openFallback();ageRangeOpenCount=openCalls.length;",
-  "byId('keywords').value='candidate@example.com';openFallback();privateOpenCount=openCalls.length;",
-  "byId('keywords').value='82 10 1234 5678';openFallback();genericPhoneOpenCount=openCalls.length;",
-  "byId('keywords').value='CPO OR CISO';openFallback();nonAtomicOpenCount=openCalls.length;",
-  "byId('keywords').value='CPO; CISO';openFallback();semicolonOpenCount=openCalls.length;",
-  "byId('keywords').value='CPO | CISO';openFallback();pipeOpenCount=openCalls.length;",
-  "byId('keywords').value='CPO';openFallback();safeOpenCount=openCalls.length;",
+  "openFallback('google');protectedOpenCount=openCalls.length;",
+  "byId('keywords').value='45 yo';openFallback('google');ageYoOpenCount=openCalls.length;",
+  "byId('keywords').value='under 45';openFallback('google');ageRangeOpenCount=openCalls.length;",
+  "byId('keywords').value='candidate@example.com';openFallback('google');privateOpenCount=openCalls.length;",
+  "byId('keywords').value='82 10 1234 5678';openFallback('google');genericPhoneOpenCount=openCalls.length;",
+  "byId('keywords').value='CPO OR CISO';openFallback('google');nonAtomicOpenCount=openCalls.length;",
+  "byId('keywords').value='CPO; CISO';openFallback('google');semicolonOpenCount=openCalls.length;",
+  "byId('keywords').value='CPO | CISO';openFallback('google');pipeOpenCount=openCalls.length;",
+  "byId('keywords').value='CPO';openFallback('google');safeOpenCount=openCalls.length;googleUrl=openCalls[0][0];",
+  "openFallback('bing');allEngineOpenCount=openCalls.length;bingUrl=openCalls[1][0];",
 ].join("\n"), fallbackSafetySandbox);
 assert.equal(fallbackSafetySandbox.protectedOpenCount, 0);
 assert.equal(fallbackSafetySandbox.ageYoOpenCount, 0);
@@ -431,6 +443,11 @@ assert.equal(fallbackSafetySandbox.nonAtomicOpenCount, 0);
 assert.equal(fallbackSafetySandbox.semicolonOpenCount, 0);
 assert.equal(fallbackSafetySandbox.pipeOpenCount, 0);
 assert.equal(fallbackSafetySandbox.safeOpenCount, 1, "only a safe atomic keyword can leave the site through the Google fallback CTA");
+assert.equal(fallbackSafetySandbox.allEngineOpenCount, 2, "the same validated query can open both external search engines");
+assert.equal(new URL(fallbackSafetySandbox.googleUrl).hostname, "www.google.com");
+assert.equal(new URL(fallbackSafetySandbox.bingUrl).hostname, "www.bing.com");
+assert.match(new URL(fallbackSafetySandbox.googleUrl).searchParams.get("q"), /^site:linkedin\.com\/in "CPO"/);
+assert.match(new URL(fallbackSafetySandbox.bingUrl).searchParams.get("q"), /^site:linkedin\.com\/in "CPO" \("개인정보보호" OR "정보보호" OR "ISMS-P" OR PIPA\)$/);
 
 for (const unauthorizedSearchRequest of [
   request("/api/search", { method: "POST", headers: { origin, "x-cpo-search": "1", "content-type": "application/json" }, body: JSON.stringify(searchPayload) }),
@@ -1808,6 +1825,9 @@ assert.equal(response.status, 409);
 let setup = await response.json();
 assert.deepEqual(setup.missingProviders, ["tavily"]);
 assert.match(setup.fallbackUrl, /^https:\/\/www\.google\.com\/search\?q=/);
+assert.equal(setup.fallbackUrls.google, setup.fallbackUrl);
+assert.match(setup.fallbackUrls.bing, /^https:\/\/www\.bing\.com\/search\?q=/);
+assert.match(new URL(setup.fallbackUrls.bing).searchParams.get("q"), /^site:linkedin\.com\/in "개인정보보호책임자" \("개인정보보호" OR "정보보호" OR "ISMS-P" OR PIPA\)$/);
 
 response = await worker.fetch(request("/api/settings/gemini", { method: "DELETE", headers: settingsHeaders }), env);
 assert.equal(response.status, 200);
