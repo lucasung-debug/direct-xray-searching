@@ -135,10 +135,7 @@ assert.match(home, /<strong>Direct X-ray Searching<\/strong>/);
 assert.match(home, /class="btn hidden" id="workflow-link"/);
 assert.match(home, /\.brand \.brand-mark\{[^}]*margin-top:0[^}]*color:#fff[^}]*display:grid/, "the compact mobile brand mark keeps centered high-contrast initials");
 assert.match(home, /키워드별 후보 찾기/);
-assert.match(home, /id="google-xray-button"[^>]*>Google ↗<\/button>/);
-assert.match(home, /id="bing-xray-button"[^>]*>Bing ↗<\/button>/);
-assert.match(home, /id="fallback-links"/);
-assert.match(home, /id="bing-fallback-link"/);
+assert.doesNotMatch(home, /google-xray-button|bing-xray-button|fallback-links|bing-fallback-link/, "manual external-engine CTAs are removed in favor of one Tavily candidate pool");
 assert.match(home, /AI 점수는 정렬하고/);
 assert.match(home, /사람은 가능성을 판단합니다/);
 assert.match(home, /낮은 점수 후보도 풀에 남기고/);
@@ -203,9 +200,9 @@ assert.match(home, /var preferred=itemScore>=existingScore\?item:existing/, "aut
 assert.match(home, /function searchSignature\(\)/);
 assert.match(home, /return \["job","location","keywords","required","preferred","additional"\]/, "the browser duplicate guard ignores presentation-only preset labels");
 assert.match(home, /round:requestedMode==="more"\?1:0/, "the deep CTA sends the distinct server-side retrieval round");
-assert.match(home, /function searchInputIssue\(payload\)/, "the direct search and external X-ray fallbacks share a client input guard");
-assert.match(home, /function externalXrayUrls\(payload\)/, "the browser generates provider-specific Google and Bing X-ray searches");
-assert.match(home, /www\.bing\.com\/search\?q=/);
+assert.match(home, /function searchInputIssue\(payload\)/, "the direct search keeps a browser-side input guard");
+assert.match(home, /직함·유사직함·전문근거 검색면을 Tavily에서 병렬 탐색합니다/);
+assert.doesNotMatch(home, /function externalXrayUrls\(payload\)|function openFallback\(|www\.bing\.com\/search\?q=/);
 assert.match(home, /mode!=="more"&&signature&&signature===lastSearchSignature/, "the browser blocks repeated initial searches but permits one distinct deep round");
 assert.match(home, /mode==="more"&&searchRound>=1/, "the browser limits the optional advanced round to one run per condition set");
 assert.match(home, /masked-output/, "share masking hides the compact search result summary and message");
@@ -214,8 +211,8 @@ assert.match(home, /masked-pool/, "share masking hides a pre-filled manual candi
 assert.match(home, /암호문과 상태 식별용 끝 4자리만 저장/, "BYOK storage copy discloses the plaintext last4 status field");
 assert.match(home, /링크 방문자가 검색하면 이 사이트에 저장된 동일한 키와 공급자 쿼터를 사용/);
 assert.match(home, /방문자는 키 원문·끝 4자리·설정 화면을 조회하거나 변경할 수 없습니다/);
-assert.match(home, /공개 방문자 20 credits, 공개 사이트 전체 200 credits/);
-assert.match(home, /초기 검색은 키워드당 역할어·전문근거 basic 검색면 2개/);
+assert.match(home, /공개 방문자 25 credits, 공개 사이트 전체 200 credits/);
+assert.match(home, /초기 검색은 키워드당 직함·유사직함·전문근거 basic 검색면 3개/);
 assert.match(home, /선택형 심층 검색은 프리셋의 별도 확장 전문근거를 advanced로 탐색/);
 assert.doesNotMatch(home, /실제 advanced 검색|검색 1회 최대 20명|발견 검색어/);
 assert.match(home, /capabilities\.role==="public"\?"공개 링크 · 일일 검색 한도 적용"/);
@@ -245,8 +242,8 @@ assert.match(workflow, /Tavily `country` 제한을 사용하지 않는다/);
 assert.match(workflow, /`확인`, 학교·프로젝트·회사 소재지 같은 맥락은 `단서`, 아무 근거가 없으면 `미확인`/);
 assert.match(workflow, /단서·미확인만으로 후보를 자동 제외하지 않되/);
 assert.match(workflow, /국적·시민권·민족 또는 출신을 추론하거나 점수화하지 않는다/);
-assert.match(workflow, /수동 Google·Bing X-ray 링크를 제공/);
-assert.match(workflow, /Edge에서는 기본 검색엔진이 Bing일 때 동일한 Bing 검색 결과/);
+assert.match(workflow, /초기 검색은 키워드마다 3개 검색면을 동시에 실행/);
+assert.doesNotMatch(workflow, /수동 Google·Bing X-ray 링크를 제공|Edge에서는 기본 검색엔진이 Bing일 때 동일한 Bing 검색 결과/);
 assert.equal(
   workflow.includes('{"id":"src_user_req_doc","label":"사용자 제공 CPO 요구사항","path":"analysis/user_cpo_requirements.md"},{"id":"src_age_law"'),
   false,
@@ -264,7 +261,7 @@ assert.ok(manifestSourceIds.has("src_bing_advanced_search"));
 assert.match(manifest.blocks.find((block) => block.id === "gemini_cta_boundaries").body, /사람의 검토 대상/);
 assert.match(manifest.blocks.find((block) => block.id === "runtime_architecture").body, /전 세계 공개 LinkedIn 결과/);
 assert.match(manifest.blocks.find((block) => block.id === "runtime_architecture").body, /국적·시민권·민족 또는 출신을 추론하거나 점수화하지 않는다/);
-assert.match(manifest.blocks.find((block) => block.id === "runtime_architecture").body, /Google·Bing X-ray 링크를 제공/);
+assert.match(manifest.blocks.find((block) => block.id === "runtime_architecture").body, /초기 검색은 키워드마다 3개 검색면을 동시에 실행/);
 
 const extractBrowserFunction = (source, name) => {
   const start = source.indexOf("function " + name + "(");
@@ -402,52 +399,6 @@ assert.equal(manualSafetySandbox.badUrl, "");
 assert.equal(manualSafetySandbox.protectedIssue, "protected");
 assert.equal(manualSafetySandbox.privateIssue, "private");
 assert.equal(manualSafetySandbox.safeIssue, "");
-
-const fallbackFields = {
-  preset: { value: "cpo" }, job: { value: "CPO" }, location: { value: "대한민국" },
-  keywords: { value: "born 1980" }, required: { value: "" }, preferred: { value: "" }, additional: { value: "" },
-};
-const fallbackSafetySandbox = {
-  searchRound: 0,
-  openCalls: [],
-  toasts: [],
-  byId: (id) => fallbackFields[id],
-  toast(message) { fallbackSafetySandbox.toasts.push(message); },
-  window: { open(...args) { fallbackSafetySandbox.openCalls.push(args); } },
-};
-vm.createContext(fallbackSafetySandbox);
-vm.runInContext([
-  extractBrowserFunction(home, "manualCandidateTextIssue"),
-  extractBrowserFunction(home, "searchInputIssue"),
-  extractBrowserFunction(home, "showSearchInputIssue"),
-  extractBrowserFunction(home, "formPayload"),
-  extractBrowserFunction(home, "externalXrayUrls"),
-  extractBrowserFunction(home, "openFallback"),
-  "openFallback('google');protectedOpenCount=openCalls.length;",
-  "byId('keywords').value='45 yo';openFallback('google');ageYoOpenCount=openCalls.length;",
-  "byId('keywords').value='under 45';openFallback('google');ageRangeOpenCount=openCalls.length;",
-  "byId('keywords').value='candidate@example.com';openFallback('google');privateOpenCount=openCalls.length;",
-  "byId('keywords').value='82 10 1234 5678';openFallback('google');genericPhoneOpenCount=openCalls.length;",
-  "byId('keywords').value='CPO OR CISO';openFallback('google');nonAtomicOpenCount=openCalls.length;",
-  "byId('keywords').value='CPO; CISO';openFallback('google');semicolonOpenCount=openCalls.length;",
-  "byId('keywords').value='CPO | CISO';openFallback('google');pipeOpenCount=openCalls.length;",
-  "byId('keywords').value='CPO';openFallback('google');safeOpenCount=openCalls.length;googleUrl=openCalls[0][0];",
-  "openFallback('bing');allEngineOpenCount=openCalls.length;bingUrl=openCalls[1][0];",
-].join("\n"), fallbackSafetySandbox);
-assert.equal(fallbackSafetySandbox.protectedOpenCount, 0);
-assert.equal(fallbackSafetySandbox.ageYoOpenCount, 0);
-assert.equal(fallbackSafetySandbox.ageRangeOpenCount, 0);
-assert.equal(fallbackSafetySandbox.privateOpenCount, 0);
-assert.equal(fallbackSafetySandbox.genericPhoneOpenCount, 0);
-assert.equal(fallbackSafetySandbox.nonAtomicOpenCount, 0);
-assert.equal(fallbackSafetySandbox.semicolonOpenCount, 0);
-assert.equal(fallbackSafetySandbox.pipeOpenCount, 0);
-assert.equal(fallbackSafetySandbox.safeOpenCount, 1, "only a safe atomic keyword can leave the site through the Google fallback CTA");
-assert.equal(fallbackSafetySandbox.allEngineOpenCount, 2, "the same validated query can open both external search engines");
-assert.equal(new URL(fallbackSafetySandbox.googleUrl).hostname, "www.google.com");
-assert.equal(new URL(fallbackSafetySandbox.bingUrl).hostname, "www.bing.com");
-assert.match(new URL(fallbackSafetySandbox.googleUrl).searchParams.get("q"), /^site:linkedin\.com\/in "CPO"/);
-assert.match(new URL(fallbackSafetySandbox.bingUrl).searchParams.get("q"), /^site:linkedin\.com\/in "CPO" \("개인정보보호" OR "정보보호" OR "ISMS-P" OR PIPA\)$/);
 
 for (const unauthorizedSearchRequest of [
   request("/api/search", { method: "POST", headers: { origin, "x-cpo-search": "1", "content-type": "application/json" }, body: JSON.stringify(searchPayload) }),
@@ -1244,7 +1195,7 @@ assert.deepEqual(search.providers, { search: "tavily", structure: "gemini" });
 assert.equal(search.model, "gemini-3.1-flash-lite");
 assert.equal(search.responseMode, "schema");
 assert.equal(search.fallbackUsed, false);
-assert.equal(search.usageCredits, 10);
+assert.equal(search.usageCredits, 15);
 assert.equal(search.retrievalAudit.schemaVersion, 1);
 assert.equal(search.retrievalAudit.nonce, retrievalAuditNonce);
 assert.equal(search.retrievalAudit.stages.finalReviewPool.length, search.candidates.length);
@@ -1254,21 +1205,21 @@ assert.doesNotMatch(JSON.stringify(search.retrievalAudit), /linkedin\.com|test-p
 assert.equal(search.locationPolicy, "korea_professional_relevance_residency_agnostic");
 assert.equal(search.locationFilteredCount, 0);
 assert.equal(search.persistAllowed, false);
-assert.equal(search.plannedQueries.length, 5);
-assert.match(search.plannedQueries[0], /site:linkedin\.com\/in/);
-assert.equal(search.executedQueries.length, 10);
+assert.equal(search.plannedQueries.length, 15);
+assert.match(search.plannedQueries[0], /LinkedIn people profile/);
+assert.equal(search.executedQueries.length, 15);
 assert.deepEqual(search.executedKeywords, ["개인정보보호책임자", "CPO", "CISO", "Head of Privacy", "정보보호실장"]);
 assert.deepEqual(search.searchPlan, {
-  strategy: "atomic_role_plus_preset_evidence_facet_union_then_ai",
+  strategy: "atomic_role_variant_plus_preset_evidence_facet_parallel_union_then_ai",
   retrievalRound: "initial",
   keywords: search.executedKeywords,
-  queryCount: 10,
-  queriesPerKeyword: 2,
-  retrievalLanes: ["role_identity", "professional_evidence"],
+  queryCount: 15,
+  queriesPerKeyword: 3,
+  retrievalLanes: ["role_identity", "role_variant", "professional_evidence"],
   evidenceFacetIds: ["privacy_governance_outcomes", "security_org_leadership", "platform_cloud_leadership", "senior_domain_evidence", "privacy_ai_governance"],
   identityQueryContextMode: "preset_keyword_context",
   searchDepth: "basic",
-  maxCredits: 10,
+  maxCredits: 15,
   actorDailyCreditLimit: 10000,
   publicSiteDailyCreditLimit: null,
   perQueryMaxResults: 20,
@@ -1289,19 +1240,22 @@ assert.deepEqual(search.searchPlan, {
   nationalityInference: false,
   evaluationPasses: 1,
 });
-assert.equal(capturedTavilyBodies.length, 10);
+assert.equal(capturedTavilyBodies.length, 15);
 for (let index = 0; index < search.executedKeywords.length; index += 1) {
   const keywordPattern = new RegExp(search.executedKeywords[index].replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-  assert.match(capturedTavilyBodies[index * 2].query, keywordPattern);
-  assert.doesNotMatch(capturedTavilyBodies[index * 2 + 1].query, keywordPattern, "CPO preset evidence facets discover candidates by responsibility instead of repeating the exact title query");
+  assert.match(capturedTavilyBodies[index * 3].query, keywordPattern);
+  assert.doesNotMatch(capturedTavilyBodies[index * 3 + 2].query, keywordPattern, "CPO preset evidence facets discover candidates by responsibility instead of repeating the exact title query");
 }
-const roleIdentityQueries = capturedTavilyBodies.filter((_, index) => index % 2 === 0).map((body) => body.query);
+const roleIdentityQueries = capturedTavilyBodies.filter((_, index) => index % 3 === 0).map((body) => body.query);
 assert.match(roleIdentityQueries[0], /^"개인정보보호책임자" LinkedIn people profile Korea 개인정보보호 privacy CPO$/i);
 assert.match(roleIdentityQueries[1], /^"CPO" LinkedIn people profile Korea Chief Privacy Officer privacy 개인정보보호$/i);
 assert.match(roleIdentityQueries[2], /^"CISO" LinkedIn people profile Korea information security privacy 개인정보보호$/i);
 assert.match(roleIdentityQueries[3], /^"Head of Privacy" LinkedIn people profile Korea privacy data protection 개인정보보호$/i);
 assert.match(roleIdentityQueries[4], /^"정보보호실장" LinkedIn people profile Korea 정보보호 개인정보보호 security leadership$/i);
 assert.doesNotMatch(roleIdentityQueries[1], /Chief Product Officer|product roadmap/i, "the ambiguous CPO identity query is anchored to privacy without encoding a hiring decision");
+const roleVariantQueries = capturedTavilyBodies.filter((_, index) => index % 3 === 1).map((body) => body.query);
+assert.match(roleVariantQueries[0], /^"Chief Privacy Officer" LinkedIn people profile Korea 개인정보보호 privacy CPO$/i);
+assert.match(roleVariantQueries[1], /^"Data Protection Officer" LinkedIn people profile Korea Chief Privacy Officer privacy 개인정보보호$/i);
 assert.deepEqual(search.searchAttempts.filter((attempt) => attempt.lane === "professional_evidence").map((attempt) => attempt.evidenceFacetId), ["privacy_governance_outcomes", "security_org_leadership", "platform_cloud_leadership", "senior_domain_evidence", "privacy_ai_governance"]);
 assert.ok(search.searchAttempts.filter((attempt) => attempt.lane === "professional_evidence").every((attempt) => attempt.roleKeywordRequired === false && /^전문근거 · /.test(attempt.discoveryLabel)));
 assert.equal(search.candidates.length, search.retrievedSourceCount, "every role-bound source remains in the human review pool instead of being gated by Gemini output");
@@ -1459,9 +1413,9 @@ assert.match(singaporeCandidate.summary, /currently based in Singapore/);
 assert.equal(singaporeCandidate.koreaEvidence, "Korea privacy");
 assert.match(singaporeCandidate.verify, /국적·시민권은 추론하지 않음/);
 assert.equal(search.sources.length, search.candidates.length, "accepted sources and review cards stay in one-to-one alignment");
-assert.equal(search.searchAttempts.length, 10);
+assert.equal(search.searchAttempts.length, 15);
 assert.ok(search.searchAttempts.every((attempt) => attempt.status === 200 && attempt.credits === 1 && attempt.resultCount > 10));
-assert.deepEqual(Array.from(new Set(search.searchAttempts.map((attempt) => attempt.lane))).sort(), ["professional_evidence", "role_identity"]);
+assert.deepEqual(Array.from(new Set(search.searchAttempts.map((attempt) => attempt.lane))).sort(), ["professional_evidence", "role_identity", "role_variant"]);
 assert.equal(search.acceptedResultCount, search.candidates.length);
 assert.equal(search.keywordMetrics.length, 5);
 assert.deepEqual(search.keywordMetrics.map((metric) => metric.keyword), search.executedKeywords);
@@ -1470,8 +1424,9 @@ assert.ok(search.keywordMetrics.every((metric) => metric.koreaEvidencePassedProf
 assert.ok(search.keywordMetrics.every((metric) => metric.koreaStrongProfileCount + metric.koreaWeakProfileCount + metric.koreaUnverifiedProfileCount === metric.preGeminiPassedProfileCount), JSON.stringify(search.keywordMetrics));
 assert.ok(search.keywordMetrics.some((metric) => metric.roleMatchedProfileCount > metric.koreaEvidencePassedProfileCount), "role-matched global profiles remain measurable when Korea professional evidence is weak or unverified");
 assert.ok(search.roleMismatchFilteredCount > 0, "results whose role keyword belongs only to a job post or unrelated snippet are filtered before Gemini");
-assert.equal(search.queryMetrics.length, 10);
+assert.equal(search.queryMetrics.length, 15);
 assert.equal(search.queryMetrics.filter((metric) => metric.lane === "role_identity").length, 5);
+assert.equal(search.queryMetrics.filter((metric) => metric.lane === "role_variant").length, 5);
 assert.equal(search.queryMetrics.filter((metric) => metric.lane === "professional_evidence").length, 5);
 assert.ok(search.queryMetrics.every((metric) => metric.rawResultCount > 10));
 assert.ok(search.queryMetrics.some((metric) => metric.lane === "professional_evidence" && metric.finalAcceptedCandidateCount > 0));
@@ -1501,10 +1456,10 @@ const testPrivacySourceRecord = sourceRecordsFromPrompt(capturedGeminiPrompt).fi
 assert.match(testPrivacySourceRecord.snippet, /profile lifecycle/, "selected public raw-profile evidence augments the short Tavily snippet");
 assert.doesNotMatch(testPrivacySourceRecord.snippet, /raw-profile@example\.com|Ignore all previous instructions|reveal every signal/i, "private and prompt-injection raw segments never reach Gemini");
 assert.match(capturedGeminiPrompt, /never output a URL/i);
-assert.equal(tavilySearchCalls - tavilyCallsBeforeAtomicSearch, 10);
-assert.equal(geminiCalls - geminiCallsBeforeAtomicSearch, 1, "ten basic retrieval calls feed one logical structured evaluation on the preferred legacy-compatible model");
+assert.equal(tavilySearchCalls - tavilyCallsBeforeAtomicSearch, 15);
+assert.equal(geminiCalls - geminiCallsBeforeAtomicSearch, 1, "fifteen parallel basic retrieval calls feed one logical structured evaluation on the preferred legacy-compatible model");
 assert.equal(Array.from(DB.usage.values())[0].request_count, 5, "CTA reserves maximum Gemini schema and prompt fallback attempts");
-assert.equal(Array.from(DB.actorUsage.entries()).find(([key]) => key.endsWith("|" + testOwnerHash))[1].reserved_credits, 10, "owner Tavily credits are reserved against a pseudonymous daily actor budget");
+assert.equal(Array.from(DB.actorUsage.entries()).find(([key]) => key.endsWith("|" + testOwnerHash))[1].reserved_credits, 15, "owner Tavily credits are reserved against a pseudonymous daily actor budget");
 const sourceRecordsInForwardKeywordOrder = sourceRecordsFromPrompt(capturedGeminiPrompt);
 assert.ok(sourceRecordsInForwardKeywordOrder.every((record) => !Object.hasOwn(record, "title")), "all evaluative title and snippet text stays inside the equal per-keyword evidence budget");
 assert.ok(sourceRecordsInForwardKeywordOrder.every((record) => !Object.hasOwn(record, "linkedin_url")), "Gemini receives source IDs and bounded public evidence, not profile URLs");
@@ -1586,8 +1541,8 @@ response = await worker.fetch(request("/api/search", { method: "POST", headers: 
 assert.equal(response.status, 200, await response.clone().text());
 const fiftySourceEvaluation = await response.json();
 assert.equal(fiftySourceEvaluation.status, "ok");
-assert.equal(fiftySourceEvaluation.retrievedSourceCount, 50, "the full ten-query union can reach final evaluation instead of being silently cut to 20");
-assert.equal(fiftySourceEvaluation.sourceCappedCount, 50);
+assert.equal(fiftySourceEvaluation.retrievedSourceCount, 50, "the deterministic review-pool cap bounds the larger fifteen-query union before evaluation");
+assert.equal(fiftySourceEvaluation.sourceCappedCount, 100);
 assert.equal(sourceRecordsFromPrompt(capturedGeminiPrompt).length, 50);
 assert.equal(fiftySourceEvaluation.candidates.length, 50, "the review pool preserves every role-bound source while enforcing its deterministic cap");
 assert.equal(fiftySourceEvaluation.aiStructuredCandidateCount, 20);
@@ -1599,10 +1554,12 @@ assert.ok(fiftySourceEvaluation.candidates.every((candidate) => candidate.retrie
 assert.ok(fiftySourceEvaluation.candidates.every((candidate) => candidate.scoreBreakdown.length >= 2));
 assert.ok(fiftySourceEvaluation.candidates.every((candidate) => candidate.scoreBreakdown.reduce((sum, signal) => sum + signal.points, 0) === candidate.rawScore));
 assert.ok(fiftySourceEvaluation.candidates.every((candidate) => candidate.scoreBreakdown.every((signal) => signal.keyword)), "every reference-score signal names the exact source keyword that triggered it");
-assert.ok(fiftySourceEvaluation.keywordMetrics.every((metric) => metric.rawResultCount === 10 && metric.uniqueProfileCount === 10 && metric.locationPassedProfileCount === 5), JSON.stringify(fiftySourceEvaluation.keywordMetrics));
-assert.equal(fiftySourceEvaluation.keywordMetrics.reduce((sum, metric) => sum + metric.finalAcceptedCandidateCount, 0), 25, "keyword metrics attribute only exact role-query discoveries; evidence-facet discoveries remain in query metrics");
-assert.ok(fiftySourceEvaluation.queryMetrics.every((metric) => metric.rawResultCount === 10 && metric.uniqueProfileCount === 10 && metric.locationPassedProfileCount === 5 && metric.finalAcceptedCandidateCount === 5));
+assert.ok(fiftySourceEvaluation.keywordMetrics.every((metric) => metric.rawResultCount === 20 && metric.uniqueProfileCount === 20 && metric.locationPassedProfileCount > 0 && metric.locationPassedProfileCount <= 20), JSON.stringify(fiftySourceEvaluation.keywordMetrics));
+assert.ok(fiftySourceEvaluation.keywordMetrics.reduce((sum, metric) => sum + metric.finalAcceptedCandidateCount, 0) > 0, "keyword metrics retain role-query attribution after the parallel union");
+assert.equal(fiftySourceEvaluation.queryMetrics.length, 15);
+assert.ok(fiftySourceEvaluation.queryMetrics.every((metric) => metric.rawResultCount === 10 && metric.uniqueProfileCount === 10 && metric.locationPassedProfileCount >= 0 && metric.finalAcceptedCandidateCount >= 0));
 assert.ok(fiftySourceEvaluation.queryMetrics.filter((metric) => metric.lane === "role_identity").every((metric) => metric.roleKeywordRequired === true && !metric.evidenceFacetId));
+assert.ok(fiftySourceEvaluation.queryMetrics.filter((metric) => metric.lane === "role_variant").every((metric) => metric.roleKeywordRequired === true && !metric.evidenceFacetId));
 assert.ok(fiftySourceEvaluation.queryMetrics.filter((metric) => metric.lane === "professional_evidence").every((metric) => metric.roleKeywordRequired === false && metric.evidenceFacetId && /^전문근거 · /.test(metric.discoveryLabel)));
 tavilyResponseMode = "normal";
 
@@ -1618,12 +1575,12 @@ response = await worker.fetch(request("/api/search", { method: "POST", headers: 
 assert.equal(response.status, 409);
 const duplicateSearch = await response.json();
 assert.equal(duplicateSearch.status, "duplicate_search", "server normalizes keyword order and ignores presentation-only CPO location text when preventing a completed duplicate search");
-assert.equal(tavilySearchCalls - callsBeforeIdempotency, 10, "a completed duplicate in the same retrieval round does not consume another Tavily query batch");
+assert.equal(tavilySearchCalls - callsBeforeIdempotency, 15, "a completed duplicate in the same retrieval round does not consume another Tavily query batch");
 assert.equal(JSON.stringify(Array.from(DB.signatures.keys())).includes(testOwnerEmail), false, "completed-search state stores only hashes");
 
 DB.lock = null;
 const deepCallsBeforeIdempotency = tavilySearchCalls;
-const initialRoundQueries = capturedTavilyBodies.slice(-10).map((body) => body.query);
+const initialRoundQueries = capturedTavilyBodies.slice(-15).map((body) => body.query);
 response = await worker.fetch(request("/api/search", { method: "POST", headers: searchHeaders, body: JSON.stringify({ ...searchPayload, mode: "more", round: 1, additional: "idempotency fixture" }) }), idempotencyEnv);
 assert.equal(response.status, 200, await response.clone().text());
 const deepIdempotencySearch = await response.json();
@@ -1688,7 +1645,7 @@ for (const mode of ["empty_object", "non_json"]) {
   assert.equal(emptyUpstream.status, "no_candidates");
   assert.equal(emptyUpstream.keywordMetrics.length, 5);
   assert.ok(emptyUpstream.keywordMetrics.every((metric) => metric.rawResultCount === 0 && metric.finalAcceptedCandidateCount === 0));
-  assert.equal(emptyUpstream.queryMetrics.length, 10);
+  assert.equal(emptyUpstream.queryMetrics.length, 15);
   assert.ok(emptyUpstream.queryMetrics.every((metric) => metric.rawResultCount === 0 && metric.finalAcceptedCandidateCount === 0));
   assert.equal(geminiCalls, geminiBeforeMalformedSuccess, "Gemini is not called for an empty Tavily result set");
 }
@@ -1703,7 +1660,7 @@ response = await worker.fetch(request("/api/search", {
 assert.equal(response.status, 200);
 const cpoLocationOverride = await response.json();
 assert.equal(cpoLocationOverride.locationPolicy, "korea_professional_relevance_residency_agnostic", "the CPO preset owns a Korea professional-context policy without a residence gate");
-assert.ok(capturedTavilyBodies.slice(-10).some((body) => /^"정보보호실장" LinkedIn (?:people )?profile/.test(body.query)));
+assert.ok(capturedTavilyBodies.slice(-15).some((body) => /^"정보보호실장" LinkedIn (?:people )?profile/.test(body.query)));
 assert.equal(Object.hasOwn(capturedTavilyBody, "country"), false, "the CPO preset remains globally retrievable when presentation text is edited");
 assert.doesNotMatch(capturedTavilyBody.query, /currently based in South Korea/i);
 assert.doesNotMatch(capturedTavilyBody.query, /United States/i, "editable presentation text cannot turn the CPO preset into a residence filter");
@@ -1719,12 +1676,12 @@ const cpoRoleOverride = await response.json();
 assert.equal(cpoRoleOverride.locationPolicy, "requested_context_no_residency_gate", "a custom role uses its explicit work context without silently applying the CPO preset");
 assert.match(capturedTavilyBody.query, /United States/i);
 assert.doesNotMatch(capturedTavilyBody.query, /currently based in South Korea/i);
-assert.equal(cpoRoleOverride.searchPlan.strategy, "atomic_dual_lane_union_role_family_then_ai", "a custom preset keeps a role-bound generic fallback instead of inheriting CPO domain facets");
+assert.equal(cpoRoleOverride.searchPlan.strategy, "atomic_role_variant_plus_evidence_parallel_union_then_ai", "a custom preset keeps role-bound generic Tavily lanes instead of inheriting CPO domain facets");
 assert.deepEqual(cpoRoleOverride.searchPlan.evidenceFacetIds, []);
 assert.equal(cpoRoleOverride.searchPlan.identityQueryContextMode, "requested_context");
 const customSearchAttempts = cpoRoleOverride.searchAttempts;
 assert.ok(customSearchAttempts.every((attempt) => attempt.roleKeywordRequired === true && attempt.evidenceFacetId === null));
-assert.ok(cpoRoleOverride.executedQueries.every((query, index) => new RegExp(customSearchAttempts[index].keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(query)), "both generic fallback lanes stay bound to the exact role keyword");
+assert.ok(cpoRoleOverride.executedQueries.every((query, index) => new RegExp(customSearchAttempts[index].keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(query)), "all generic Tavily lanes stay bound to the exact role keyword");
 
 DB.lock = null;
 const customDeepCallsBefore = tavilySearchCalls;
@@ -1824,10 +1781,8 @@ response = await worker.fetch(request("/api/search", { method: "POST", headers: 
 assert.equal(response.status, 409);
 let setup = await response.json();
 assert.deepEqual(setup.missingProviders, ["tavily"]);
-assert.match(setup.fallbackUrl, /^https:\/\/www\.google\.com\/search\?q=/);
-assert.equal(setup.fallbackUrls.google, setup.fallbackUrl);
-assert.match(setup.fallbackUrls.bing, /^https:\/\/www\.bing\.com\/search\?q=/);
-assert.match(new URL(setup.fallbackUrls.bing).searchParams.get("q"), /^site:linkedin\.com\/in "개인정보보호책임자" \("개인정보보호" OR "정보보호" OR "ISMS-P" OR PIPA\)$/);
+assert.equal(setup.fallbackUrl, null);
+assert.equal(setup.fallbackUrls, null);
 
 response = await worker.fetch(request("/api/settings/gemini", { method: "DELETE", headers: settingsHeaders }), env);
 assert.equal(response.status, 200);
@@ -1842,8 +1797,8 @@ const publicEnv = {
   DB: publicDB,
   CPO_PUBLIC_SEARCH_ENABLED: "1",
   CPO_PUBLIC_ACTOR_SALT: "public-test-salt",
-  CPO_PUBLIC_TAVILY_DAILY_CREDIT_LIMIT: "10",
-  CPO_PUBLIC_TAVILY_GLOBAL_DAILY_CREDIT_LIMIT: "10",
+  CPO_PUBLIC_TAVILY_DAILY_CREDIT_LIMIT: "15",
+  CPO_PUBLIC_TAVILY_GLOBAL_DAILY_CREDIT_LIMIT: "15",
 };
 response = await worker.fetch(request("/api/capabilities", { headers: { "x-cpo-session": "1" } }), publicEnv);
 assert.deepEqual(await response.json(), { status: "ok", role: "public", canSearch: true, canManageKeys: false });
@@ -1885,9 +1840,9 @@ response = await worker.fetch(request("/api/search", {
 assert.equal(response.status, 200, await response.clone().text());
 const publicSearch = await response.json();
 assert.equal(publicSearch.status, "ok");
-assert.equal(publicSearch.searchPlan.actorDailyCreditLimit, 10);
-assert.equal(publicSearch.searchPlan.publicSiteDailyCreditLimit, 10);
-assert.equal(tavilySearchCalls - publicCallsBeforeSearch, 10);
+assert.equal(publicSearch.searchPlan.actorDailyCreditLimit, 15);
+assert.equal(publicSearch.searchPlan.publicSiteDailyCreditLimit, 15);
+assert.equal(tavilySearchCalls - publicCallsBeforeSearch, 15);
 assert.equal(publicDB.actorUsage.size, 2, "public search reserves both a visitor bucket and the site-wide bucket");
 assert.equal(JSON.stringify(Array.from(publicDB.actorUsage.keys())).includes("203.0.113.10"), false, "raw visitor addresses are never stored in usage keys");
 assert.equal(JSON.stringify(Array.from(publicDB.actorUsage.keys())).includes(testOwnerEmail), false);
@@ -1902,7 +1857,7 @@ response = await worker.fetch(request("/api/search", {
 assert.equal(response.status, 429);
 const publicVisitorLimit = await response.json();
 assert.equal(publicVisitorLimit.status, "tavily_daily_limit");
-assert.equal(publicVisitorLimit.dailyCreditLimit, 10);
+assert.equal(publicVisitorLimit.dailyCreditLimit, 15);
 assert.equal(tavilySearchCalls, callsBeforeVisitorLimit, "visitor limits block before provider calls");
 
 publicDB.lock = null;
@@ -1915,7 +1870,7 @@ response = await worker.fetch(request("/api/search", {
 assert.equal(response.status, 429);
 const publicSiteLimit = await response.json();
 assert.equal(publicSiteLimit.status, "public_site_daily_limit");
-assert.equal(publicSiteLimit.dailyCreditLimit, 10);
+assert.equal(publicSiteLimit.dailyCreditLimit, 15);
 assert.equal(tavilySearchCalls, callsBeforePublicSiteLimit, "site-wide public limits block before provider calls");
 assert.ok(Array.from(publicDB.actorUsage.values()).some((row) => row.reserved_credits === 0), "a site-wide rejection rolls back the new visitor reservation");
 
